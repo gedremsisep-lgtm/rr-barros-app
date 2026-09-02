@@ -1,5 +1,8 @@
 {
   "appVersion": "20260902-018",
-  "publicadoEm": "2026-09-02T19:30:00Z",
-  "notas": "Tela do campo so com as duas fotos; campo de versao no app e no sistema."
+  "apkVersionCode": 6,
+  "apkVersionName": "1.5",
+  "apkUrl": "https://gedremsisep-lgtm.github.io/rr-barros-app/RR-Barros.apk",
+  "publicadoEm": "2026-09-02T19:20:00Z",
+  "notas": "Tela do campo so com as duas fotos. Aplicativo passa a se atualizar sozinho e mostra a versao em Ajustes."
 }
