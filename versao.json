@@ -1,6 +1,5 @@
 {
-  "appVersion": "20260901-017",
-  "apkVersionCode": 5,
-  "publicadoEm": "2026-09-01T19:05:21Z",
-  "notas": "Camera direta, medidas sem fechar o teclado, botao Trocar rua e atualizacao automatica."
+  "appVersion": "20260902-018",
+  "publicadoEm": "2026-09-02T19:30:00Z",
+  "notas": "Tela do campo so com as duas fotos; campo de versao no app e no sistema."
 }

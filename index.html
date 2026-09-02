@@ -143,14 +143,6 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
 .slotp .gps{position:absolute;top:5px;left:5px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-weight:700;padding:2px 5px;border-radius:8px}
 .slotp .gps.no{background:rgba(163,45,45,.85)}
 .slotp .del{position:absolute;top:5px;right:5px;background:rgba(163,45,45,.92);color:#fff;border:none;border-radius:6px;width:28px;height:28px;display:flex;align-items:center;justify-content:center}
-.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
-.chip{border:1.5px solid var(--border);border-radius:99px;padding:7px 13px;font-size:13px;font-weight:700;
-  color:var(--text2);background:var(--bg2)}
-.chip.on{border-color:var(--blue);background:var(--blue-bg);color:var(--blue)}
-.conta{margin-top:9px;font-size:13.5px;color:var(--text2)}
-.dimhead .mini{font-size:11.5px;font-weight:700;color:var(--blue);border:1.5px solid var(--blue);
-  border-radius:99px;padding:4px 10px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
-.dim3 input{font-size:17px;text-align:center;padding:12px 8px}
 .relbar{display:flex;align-items:center;gap:9px;padding:10px 12px;border-radius:var(--r);margin-top:4px;
   font-size:13px;line-height:1.4;background:#EEF3FB;border:1.5px solid #C7D8F0;color:#20344F;flex-wrap:wrap}
 .relbar.fim{background:#EAF7EE;border-color:#BFE3CB;color:#1D4A2C}
@@ -163,13 +155,6 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
 .gpsbar.esperando{background:var(--blue-bg);border-color:#a9d0f0;color:var(--blue)}
 .gpsbar.ruim{background:var(--red-bg);border-color:#e8b6b6;color:var(--red)}
 .gpsbar .acao{margin-top:7px;display:inline-block;background:#fff;border:1.5px solid currentColor;border-radius:var(--r2);padding:7px 12px;font-weight:800;font-size:12.5px}
-.dimbox{margin-top:9px;border-top:1px solid var(--border);padding-top:9px}
-.dimhead{font-size:11px;font-weight:800;color:var(--blue);letter-spacing:.4px;margin-bottom:5px;display:flex;align-items:center;gap:6px}
-.dimhead .ar{margin-left:auto;color:var(--green);font-weight:800}
-.dim3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px}
-.dim3 input{width:100%;padding:9px 8px;border:1.5px solid var(--border2);border-radius:var(--r2);text-align:center}
-.dim3 .cap{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;text-align:center;margin-bottom:3px}
-.dimdesc{width:100%;padding:9px 10px;border:1.5px solid var(--border2);border-radius:var(--r2)}
 .barra{height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;margin-top:7px}
 .barra div{height:100%;background:var(--green);width:0}
 .olho{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);padding:6px;display:flex}
@@ -355,12 +340,20 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
     <div class="brow" style="margin-top:9px"><button class="btn" onclick="abrirAjudaGPS()"><i class="ti ti-help-circle"></i>Como liberar a localização</button></div>
   </div>
   <div class="card">
-    <div class="sh"><i class="ti ti-refresh-alert"></i>Versão do aplicativo</div>
+    <div class="sh"><i class="ti ti-refresh-alert"></i>Versão</div>
     <div id="a-versao" style="font-size:13.5px;color:var(--text2);margin-bottom:11px"></div>
-    <button class="btn" onclick="procurarAtualizacao()"><i class="ti ti-cloud-download"></i>Procurar atualização agora</button>
+    <button class="btn" onclick="procurarAtualizacao()"><i class="ti ti-cloud-download"></i>Procurar atualização da tela</button>
     <div class="brow" style="margin-top:9px" id="a-ver-extra"></div>
     <div class="al ag" id="a-ver-ok"><i class="ti ti-circle-check"></i><span></span></div>
     <div class="al ai" id="a-ver-info"><i class="ti ti-info-circle"></i><span></span></div>
+    <div id="a-app" style="display:none;margin-top:13px;border-top:1px solid var(--border);padding-top:12px">
+      <div style="font-size:13.5px;color:var(--text2);margin-bottom:10px">
+        A <b>tela</b> se atualiza sozinha. O <b>aplicativo</b> baixa sozinho e pede
+        um toque em <i>Instalar</i> — o Android não deixa nenhum programa se instalar calado.</div>
+      <div class="brow" id="a-app-btn"></div>
+      <div class="al ag" id="a-app-ok"><i class="ti ti-circle-check"></i><span></span></div>
+      <div class="al ai" id="a-app-info"><i class="ti ti-info-circle"></i><span></span></div>
+    </div>
   </div>
   <div class="card">
     <div class="sh"><i class="ti ti-link-off"></i>Conexão</div>
@@ -424,7 +417,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20260901-017';
+const APP_VERSION = '20260902-018';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -798,7 +791,8 @@ function mostrarLogin(){
   document.querySelectorAll('.tela').forEach(e=>e.classList.remove('on'));
   $('t-login').classList.add('on');
   $('nav').style.display='none';
-  $('lg-ver').textContent=APP_VERSION;
+  const _a = versaoDoApp();
+  $('lg-ver').textContent = (_a ? 'app '+_a.nome+' · tela ' : '') + APP_VERSION;
   $('lg-user').value=localStorage.getItem('rrbapp_login_ultimo')||'';
   $('lg-pass').value='';
   if(!conectado()){
@@ -1475,10 +1469,28 @@ function seqTirar(furoUid, tipo){
   $('seq-file').value = '';
   $('seq-file').click();
 }
+/* Uma foto recém-tirada chega com a data de agora. Uma foto escolhida da galeria
+   chega com a data do dia em que foi tirada. Quinze minutos de folga cobrem
+   aparelho devagar e câmera que demora a gravar o arquivo. */
+const JANELA_FOTO_MIN = 15;
+function fotoDeAgora(arq){
+  const t = arq && arq.lastModified;
+  if(!t) return true;                    /* sem data: não dá para julgar, aceita */
+  const minutos = (Date.now() - t) / 60000;
+  return minutos <= JANELA_FOTO_MIN && minutos >= -JANELA_FOTO_MIN;
+}
 async function seqRecebeuFoto(input){
   const arq = input.files[0]; if(!arq) return;
   const furoUid = SEQ_FURO, tipo = SEQ_TIPO;
   input.value = '';
+  /* Só entra foto tirada na hora. No aplicativo instalado a galeria nem é
+     oferecida (o Android abre a câmera direto); no navegador, alguns aparelhos
+     ainda deixam escapar a galeria — aqui a foto antiga é recusada. */
+  if(!fotoDeAgora(arq)){
+    alerta('s-aviso','Só é aceita <b>foto tirada na hora</b>. Toque de novo no quadro e use a câmera.', 0);
+    await seqRender();
+    return;
+  }
   const todos = await dbGetAll('furos');
   const furo = todos.find(x=>x.uid===furoUid); if(!furo) return;
   seqMarcarOcupado(furoUid, tipo, 'Processando...');
@@ -1537,95 +1549,10 @@ function seqMarcarOcupado(furoUid, tipo, txt){
   if(el) el.innerHTML = `<i class="ti ti-loader-2"></i><div class="rot">${esc(txt)}</div>`;
 }
 
-/* Grava a medida SEM refazer a lista. Refazer a tela a cada dígito era o que
-   fechava o teclado numérico do celular a toda hora. */
-function nBRapp(v,c){ const n = parseFloat(v)||0;
-  return n.toLocaleString('pt-BR',{minimumFractionDigits:c, maximumFractionDigits:c}); }
-function nNum(v){ const n = parseFloat(String(v==null?'':v).replace(',','.')); return isNaN(n)?0:n; }
-function pintarConta(fotoUid){
-  const cx = document.querySelector(`[data-dim="${fotoUid}"]`); if(!cx) return;
-  const val = c => nNum((cx.querySelector(`[data-c="${c}"]`)||{}).value);
-  const L = val('largura'), C = val('comprimento'), E = val('espessura');
-  const a = L*C, v = a*(E/100);
-  const alvo = cx.querySelector('.conta');
-  if(alvo) alvo.innerHTML = (L&&C)
-    ? `${nBRapp(L,2)} × ${nBRapp(C,2)} m = <b>${nBRapp(a,2)} m²</b>`
-      + (E?` · ${nBRapp(E,1)} cm = <b>${nBRapp(v,3)} m³</b>`:'')
-    : '<span style="color:var(--text3)">preencha largura e comprimento</span>';
-}
-let SALVANDO = Promise.resolve();
-async function seqSetFoto(fotoUid, campo, valor){
-  /* uma gravação por vez: dois campos salvando juntos apagavam um ao outro */
-  SALVANDO = SALVANDO.then(async ()=>{
-    const fs = await dbGetAll('fotos');
-    const fo = fs.find(x=>x.uid===fotoUid); if(!fo) return;
-    const novo = {...fo};
-    if(campo==='descricao'){
-      novo.descricao = valor;
-    } else {
-      /* lê os três campos do bloco, não só o que mudou */
-      const cx = document.querySelector(`[data-dim="${fotoUid}"]`);
-      const doDom = c=>{ const i = cx && cx.querySelector(`[data-c="${c}"]`); return i ? i.value : null; };
-      ['largura','comprimento','espessura'].forEach(c=>{
-        const v = (c===campo) ? valor : doDom(c);
-        if(v !== null) novo[c] = (String(v).trim()==='' ? null : nNum(v));
-      });
-    }
-    const L = nNum(novo.largura), C = nNum(novo.comprimento), E = nNum(novo.espessura);
-    novo.area   = (L&&C) ? +(L*C).toFixed(3) : null;
-    novo.volume = (novo.area&&E) ? +(novo.area*(E/100)).toFixed(4) : null;
-    await dbPut('fotos', novo);
-    pintarConta(fotoUid);
-    await atualizarKpisLeves();
-  }).catch(e=>console.error(e));
-  return SALVANDO;
-}
-/* Espessura quase sempre se repete: um toque no valor e pronto. */
-async function seqEspessura(fotoUid, cm){
-  const cx = document.querySelector(`[data-dim="${fotoUid}"]`);
-  if(cx){
-    const i = cx.querySelector('[data-c="espessura"]'); if(i) i.value = cm;
-    cx.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.cm===String(cm)));
-  }
-  await seqSetFoto(fotoUid, 'espessura', cm);
-}
-/* Copia as medidas do furo anterior — na mesma rua elas costumam repetir. */
-async function seqCopiarAnterior(fotoUid, tipo, furoUid){
-  const furos = await seqFuros();
-  const ix = furos.findIndex(f=>f.uid===furoUid);
-  if(ix <= 0){ alerta('s-aviso','Este é o primeiro furo do relatório — não há medida anterior para copiar.'); return; }
-  const fotos = await dbGetAll('fotos');
-  const antes = fotos.find(x=>x.furoUid===furos[ix-1].uid && x.tipo===tipo)
-             || fotos.find(x=>x.furoUid===furos[ix-1].uid);
-  if(!antes || antes.largura==null || antes.comprimento==null){
-    alerta('s-aviso','O furo anterior ainda não tem largura e comprimento preenchidos.'); return; }
-  const fo = fotos.find(x=>x.uid===fotoUid); if(!fo) return;
-  const novo = {...fo, largura:antes.largura, comprimento:antes.comprimento, espessura:antes.espessura};
-  const L = nNum(novo.largura), C = nNum(novo.comprimento), E = nNum(novo.espessura);
-  novo.area = (L&&C)?+(L*C).toFixed(3):null;
-  novo.volume = (novo.area&&E)?+(novo.area*(E/100)).toFixed(4):null;
-  await dbPut('fotos', novo);
-  const cx = document.querySelector(`[data-dim="${fotoUid}"]`);
-  if(cx){
-    ['largura','comprimento','espessura'].forEach(c=>{
-      const i = cx.querySelector(`[data-c="${c}"]`); if(i) i.value = novo[c]!=null?novo[c]:'';
-    });
-    cx.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.cm===String(novo.espessura)));
-  }
-  pintarConta(fotoUid);
-  atualizarKpisLeves();
-  limpa('s-aviso');
-}
-/* Atualiza só os números do topo, sem mexer nos campos que estão em uso. */
-async function atualizarKpisLeves(){
-  try{
-    const furos = await seqFuros();
-    const uids = new Set(furos.map(f=>f.uid));
-    const fotos = (await dbGetAll('fotos')).filter(x=>uids.has(x.furoUid));
-    const area = fotos.filter(x=>x.tipo==='antes').reduce((s,x)=>s+(parseFloat(x.area)||0),0);
-    const el = $('s-area'); if(el) el.textContent = area ? nBRapp(area,2)+' m²' : '—';
-  }catch(e){}
-}
+/* As medidas (largura, comprimento, espessura) e a observação saíram da tela do
+   campo: quem está na rua tira as duas fotos e pronto. As medidas passaram a ser
+   lançadas no escritório, ao conferir o relatório. Os campos continuam existindo
+   no registro da foto — só não são mais preenchidos aqui. */
 async function seqRender(){
   try{
     /* A lista depende só da data: sem medição o dia continua sendo lançado. */
@@ -1660,43 +1587,6 @@ async function seqRender(){
             <div class="gps${gpsCls}">${gpsTxt}</div>
             <div class="tag">${esc(fo.rotulo)}${fo.enviada?' ✓':''}</div></div>`;
       }).join('');
-      const dims = ['antes','depois'].map(tipo=>{
-        const fo = mapaF.get(f.uid+'|'+tipo);
-        if(!fo) return '';
-        const a = (parseFloat(fo.largura)||0) * (parseFloat(fo.comprimento)||0);
-        const vol = a * ((parseFloat(fo.espessura)||0)/100);
-        const chips = [3,5,7,10].map(cm=>`<span class="chip${String(fo.espessura)===String(cm)?' on':''}"
-            data-cm="${cm}" onclick="seqEspessura('${fo.uid}',${cm})">${cm} cm</span>`).join('');
-        return `<div class="dimbox" data-dim="${fo.uid}">
-          <div class="dimhead"><i class="ti ti-ruler-measure"></i>${tipo==='antes'?'TAMANHO — ANTES':'TAMANHO — DEPOIS'}
-            <span class="ar"><span class="mini" onclick="seqCopiarAnterior('${fo.uid}','${tipo}','${f.uid}')">
-              <i class="ti ti-copy"></i>igual ao anterior</span></span></div>
-          <div class="dim3">
-            <div><div class="cap">Largura m</div>
-              <input type="number" inputmode="decimal" step="0.01" enterkeyhint="next" data-c="largura"
-                     value="${fo.largura!=null?fo.largura:''}"
-                     oninput="pintarConta('${fo.uid}')"
-                     onchange="seqSetFoto('${fo.uid}','largura',this.value)"></div>
-            <div><div class="cap">Compr. m</div>
-              <input type="number" inputmode="decimal" step="0.01" enterkeyhint="next" data-c="comprimento"
-                     value="${fo.comprimento!=null?fo.comprimento:''}"
-                     oninput="pintarConta('${fo.uid}')"
-                     onchange="seqSetFoto('${fo.uid}','comprimento',this.value)"></div>
-            <div><div class="cap">Espess. cm</div>
-              <input type="number" inputmode="decimal" step="0.5" enterkeyhint="done" data-c="espessura"
-                     value="${fo.espessura!=null?fo.espessura:''}"
-                     oninput="pintarConta('${fo.uid}')"
-                     onchange="seqSetFoto('${fo.uid}','espessura',this.value)"></div>
-          </div>
-          <div class="chips">${chips}</div>
-          <div class="conta">${a
-            ? `${nBRapp(fo.largura,2)} × ${nBRapp(fo.comprimento,2)} m = <b>${nBRapp(a,2)} m²</b>`
-              + (vol?` · ${nBRapp(fo.espessura,1)} cm = <b>${nBRapp(vol,3)} m³</b>`:'')
-            : '<span style="color:var(--text3)">preencha largura e comprimento</span>'}</div>
-          <input class="dimdesc" placeholder="Observação sobre o tamanho (opcional)" value="${esc(fo.descricao||'')}"
-                 onchange="seqSetFoto('${fo.uid}','descricao',this.value)">
-          </div>`;
-      }).join('');
       const completo = mapaF.has(f.uid+'|antes') && mapaF.has(f.uid+'|depois');
       return `<div class="fcard-furo${completo?' ok':''}">
         <div class="fh"><b>Furo ${f.num}</b>
@@ -1705,7 +1595,6 @@ async function seqRender(){
           <button class="btn sm" style="width:auto;padding:6px 9px" onclick="seqExcluirFuro('${f.uid}',${f.num})"><i class="ti ti-trash"></i></button></div>
         <div class="fb">
           <div class="fotos">${cels}</div>
-          ${dims}
         </div></div>`;
     }).join('');
 
@@ -1720,10 +1609,7 @@ async function seqRender(){
       `<div class="kc"><div class="kl">Furos</div><div class="kv">${furos.length}</div></div>
        <div class="kc gn"><div class="kl">Fotos</div><div class="kv">${nFotos}</div></div>
        <div class="kc ${aEnviar?'am':'gn'}"><div class="kl">A enviar</div><div class="kv">${aEnviar}</div></div>
-       <div class="kc ${semEnd?'am':'gn'}"><div class="kl">Sem endereço</div><div class="kv">${semEnd}</div></div>
-       <div class="kc gn" style="grid-column:1/-1"><div class="kl">Área medida (pela foto do antes)</div>
-         <div class="kv" id="s-area">—</div></div>`;
-    atualizarKpisLeves();
+       <div class="kc ${semEnd?'am':'gn'}"><div class="kl">Sem endereço</div><div class="kv">${semEnd}</div></div>`;
 
     pintarPosRelatorio(furos.length);
     const partes = [];
@@ -2155,12 +2041,23 @@ function avisarAtualizacao(estado, valor){
 }
 function pintarFaixaAtualizacao(){
   const box = $('in-atualizacao'); if(!box) return;
-  if(!ATUALIZACAO || ATUALIZACAO.estado !== 'pronta'){ box.innerHTML = ''; return; }
-  box.innerHTML = `<div class="relbar fim" style="margin-bottom:12px">
-    <i class="ti ti-download"></i>
-    <span>Atualização <b>${esc(ATUALIZACAO.versao||'')}</b> pronta.
-      <span class="st s-ok" style="margin-left:4px" onclick="aplicarAtualizacao()">Usar a versão nova</span></span>
-  </div>`;
+  const faixas = [];
+  /* O aplicativo vem primeiro: instalar a casca nova já traz a tela junto. */
+  if(ATUALIZACAO_APP && ATUALIZACAO_APP.estado === 'pronta'){
+    faixas.push(`<div class="relbar fim" style="margin-bottom:12px">
+      <i class="ti ti-device-mobile-down"></i>
+      <span>Aplicativo <b>${esc(ATUALIZACAO_APP.versao||'')}</b> baixado.
+        <span class="st s-ok" style="margin-left:4px" onclick="instalarApp()">Instalar a versão nova</span></span>
+    </div>`);
+  }
+  if(ATUALIZACAO && ATUALIZACAO.estado === 'pronta'){
+    faixas.push(`<div class="relbar fim" style="margin-bottom:12px">
+      <i class="ti ti-download"></i>
+      <span>Atualização <b>${esc(ATUALIZACAO.versao||'')}</b> pronta.
+        <span class="st s-ok" style="margin-left:4px" onclick="aplicarAtualizacao()">Usar a versão nova</span></span>
+    </div>`);
+  }
+  box.innerHTML = faixas.join('');
 }
 function aplicarAtualizacao(){
   if(noAplicativo()) AndroidRRB.aplicarAtualizacao();
@@ -2189,21 +2086,74 @@ async function procurarAtualizacao(){
   }
   pintarVersao();
 }
+/* --------- atualização do próprio aplicativo (a casca instalada) ---------
+   Duas coisas se atualizam por caminhos diferentes, e a tela mostra as duas
+   separadas para ninguém confundir:
+     • a TELA (conteúdo) — troca sozinha, sem instalar nada;
+     • o APLICATIVO (APK) — baixa sozinho e pede um toque em Instalar, porque
+       o Android não deixa nenhum programa se instalar calado.
+   Publicando um APK novo, o celular acha na abertura seguinte. */
+let ATUALIZACAO_APP = null;
+function avisarApp(estado, valor){
+  ATUALIZACAO_APP = {estado, versao:valor};
+  if(estado === 'pronta'){
+    pintarFaixaAtualizacao();
+    alerta('a-app-ok','Aplicativo <b>'+esc(valor)+'</b> baixado. Toque em <b>Instalar a versão nova</b>.',0);
+  } else if(estado === 'existe'){
+    alerta('a-app-info','Saiu o aplicativo <b>'+esc(valor)+'</b>, mas o arquivo ainda não foi publicado. Peça o APK ao escritório.',0);
+  } else if(estado === 'igual'){
+    alerta('a-app-info','O aplicativo já está na versão mais recente (<b>'+esc(valor)+'</b>).');
+  } else {
+    alerta('a-app-info','Não deu para verificar o aplicativo agora: '+esc(valor)+'.');
+  }
+  pintarVersao();
+}
+function instalarApp(){
+  if(noAplicativo()) AndroidRRB.instalarAtualizacaoDoApp();
+}
+function procurarAtualizacaoDoApp(){
+  limpa('a-app-ok','a-app-info');
+  if(!noAplicativo()){
+    alerta('a-app-info','Você está pelo navegador — não há aplicativo instalado para atualizar.');
+    return;
+  }
+  alerta('a-app-info','Procurando...', 0);
+  AndroidRRB.procurarAtualizacaoDoApp();
+}
+/** "1.5|6" → {nome:'1.5', codigo:6} */
+function versaoDoApp(){
+  if(!noAplicativo()) return null;
+  try{
+    const p = String(AndroidRRB.versaoDoApp()||'').split('|');
+    return {nome:p[0]||'?', codigo:parseInt(p[1]||'0',10)||0};
+  }catch(e){ return null; }
+}
 function pintarVersao(){
   const el = $('a-versao'); if(!el) return;
   let baixada = '';
   try{ if(noAplicativo()) baixada = AndroidRRB.versaoBaixada() || ''; }catch(e){}
-  const linhas = [
-    `Versão em uso: <b>${esc(APP_VERSION)}</b>`,
-    noAplicativo() ? 'Rodando pelo <b>aplicativo instalado</b>' : 'Rodando pelo <b>navegador</b>'
-  ];
-  if(baixada) linhas.push(`Atualizada sozinha para <b>${esc(baixada)}</b>`);
+  const app = versaoDoApp();
+  const linhas = [];
+  if(app) linhas.push(`Aplicativo instalado: <b>${esc(app.nome)}</b> <span style="color:var(--text3)">(código ${app.codigo})</span>`);
+  linhas.push(`Tela em uso: <b>${esc(baixada || APP_VERSION)}</b>`
+              + (baixada ? ' <span style="color:var(--text3)">(atualizada sozinha)</span>' : ''));
+  linhas.push(noAplicativo() ? 'Rodando pelo <b>aplicativo instalado</b>' : 'Rodando pelo <b>navegador</b>');
   el.innerHTML = linhas.join('<br>');
+
   const extra = $('a-ver-extra');
   if(extra) extra.innerHTML = (noAplicativo() && baixada)
     ? `<button class="btn" style="flex:1" onclick="AndroidRRB.voltarVersaoDeFabrica()">
          <i class="ti ti-arrow-back-up"></i>Voltar à versão de fábrica</button>`
     : '';
+
+  const cx = $('a-app'); if(!cx) return;
+  cx.style.display = noAplicativo() ? '' : 'none';
+  const bt = $('a-app-btn');
+  if(bt) bt.innerHTML = (ATUALIZACAO_APP && ATUALIZACAO_APP.estado === 'pronta')
+    ? `<button class="btn p" style="flex:1" onclick="instalarApp()">
+         <i class="ti ti-download"></i>Instalar a versão nova</button>`
+    : `<button class="btn" style="flex:1" onclick="procurarAtualizacaoDoApp()">
+         <i class="ti ti-refresh"></i>Procurar versão nova do aplicativo</button>`;
 }
 
 /* ------------------------------- INÍCIO --------------------------------
