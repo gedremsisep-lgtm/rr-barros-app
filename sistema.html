@@ -63,6 +63,12 @@ pre.sql{background:#1C1F26;color:#D8E0EA;padding:12px 14px;border-radius:var(--r
 .side{position:fixed;top:56px;left:0;bottom:0;width:222px;background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;padding:10px 0 30px;z-index:40}
 .ns{font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.9px;padding:14px 16px 6px}
 .sbver{margin-top:18px;padding:10px 16px;border-top:1px solid var(--border);font-size:10.5px;color:var(--text3);cursor:pointer}
+.faixaatu{display:flex;align-items:center;gap:11px;padding:12px 16px;border-radius:var(--radius);
+  margin-bottom:14px;background:var(--green-bg);border:1px solid #9ecf9b;color:#1D6B33;font-size:13.5px}
+.faixaatu.av{background:#FFF8E6;border-color:#E8C97A;color:#7A5B00}
+.faixaatu i{font-size:21px;flex-shrink:0}
+.faixaatu .bt{margin-left:auto;background:#fff;border:1.5px solid currentColor;border-radius:var(--r2);
+  padding:7px 13px;font-weight:800;font-size:12.5px;cursor:pointer;color:inherit;white-space:nowrap}
 .sbver:hover{color:var(--text2)}
 .ni{display:flex;align-items:center;gap:9px;padding:9px 16px;cursor:pointer;font-size:13px;color:var(--text2);border-left:3px solid transparent;font-weight:500}
 .ni:hover{background:var(--bg3);color:var(--text)}
@@ -282,7 +288,6 @@ table.dt .ar{text-align:right}
 <div class="side">
   <div class="ns">Operação</div>
   <div class="ni" id="n-dash" onclick="go('dash')"><i class="ti ti-layout-dashboard"></i>Resumo Geral</div>
-  <div class="ni" id="n-med" onclick="go('med')"><i class="ti ti-clipboard-list"></i>Medições</div>
   <div class="ns">Documentos</div>
   <div class="ni" id="n-rf" onclick="go('rf')"><i class="ti ti-camera"></i>Relatório Fotográfico
     <span class="bdg" id="n-rf-bdg" style="display:none">0</span></div>
@@ -295,6 +300,8 @@ table.dt .ar{text-align:right}
 
 <div class="main">
 
+<div id="sis-atualizacao"></div>
+
 <!-- ============================================================ DASHBOARD -->
 <div class="pg on" id="pg-dash">
   <div class="ph"><h1><i class="ti ti-layout-dashboard"></i>Resumo Geral</h1>
@@ -303,7 +310,6 @@ table.dt .ar{text-align:right}
   <div class="fcard">
     <div class="fhead"><i class="ti ti-filter"></i>Filtros</div>
     <div class="fr4">
-      <div class="fg"><label>Medição</label><select id="d-med" onchange="dashRender()"><option value="">Todas</option></select></div>
       <div class="fg"><label>Equipe</label><select id="d-eq" onchange="dashRender()"><option value="">Todas</option></select></div>
       <div class="fg"><label>Data inicial</label><input type="date" id="d-di" onchange="dashRender()"></div>
       <div class="fg"><label>Data final</label><input type="date" id="d-df" onchange="dashRender()"></div>
@@ -320,84 +326,9 @@ table.dt .ar{text-align:right}
     <div class="card"><div class="sh"><i class="ti ti-calendar-stats"></i>Furos por Dia (últimos 14 registros)</div><div id="d-ch-dia"></div></div>
   </div>
 
-  <div class="card tw" style="margin-top:14px">
-    <div style="padding:13px 16px 0"><div class="sh"><i class="ti ti-list-details"></i>Medições cadastradas</div></div>
-    <table class="dt"><thead><tr>
-      <th>Medição</th><th>Região / Lote</th><th>Equipe</th><th>Período</th>
-      <th class="ac">Furos</th><th class="ac">Fotos</th><th class="ac">Status</th><th class="ac">Ações</th>
-    </tr></thead><tbody id="d-tb"></tbody></table>
-  </div>
 </div>
 
 <!-- ============================================================ MEDIÇÕES -->
-<div class="pg" id="pg-med">
-  <div class="ph"><h1><i class="ti ti-clipboard-list"></i>Medições</h1>
-    <p>Cada medição agrupa os furos e o relatório fotográfico de um período/lote.</p></div>
-
-  <div class="tabs">
-    <div class="tab on" onclick="medStab(this,'med-form')"><i class="ti ti-file-plus"></i>Nova Medição</div>
-    <div class="tab" onclick="medStab(this,'med-dia')"><i class="ti ti-calculator"></i>Medição do Dia</div>
-  </div>
-
-  <div id="med-form">
-    <div class="fcard">
-      <div class="fhead"><i class="ti ti-file-plus"></i>Dados da Medição</div>
-      <div class="fr4">
-        <div class="fg"><label>Nº da Medição *</label><input type="number" id="m-num" min="1" placeholder="Ex.: 38"></div>
-        <div class="fg"><label>Região *</label><input type="text" id="m-reg" placeholder="Ex.: CENTRO"></div>
-        <div class="fg"><label>Lote *</label><input type="text" id="m-lote" placeholder="Ex.: 03"></div>
-        <div class="fg"><label>Equipe *</label><select id="m-eq"></select></div>
-      </div>
-      <div class="fr4">
-        <div class="fg"><label>Data inicial</label><input type="date" id="m-di"></div>
-        <div class="fg"><label>Data final</label><input type="date" id="m-df"></div>
-        <div class="fg"><label>Serviço padrão</label><select id="m-srv"></select></div>
-        <div class="fg"><label>Status</label><select id="m-st"><option>Aberta</option><option>Fechada</option></select></div>
-      </div>
-      <div class="fr"><div class="fg"><label>Objeto / Descrição do contrato</label>
-        <input type="text" id="m-obj" placeholder="MEDIÇÕES DE TAPA BURACO">
-        <div class="hint">Aparece no cabeçalho do relatório impresso.</div></div></div>
-      <div class="fr"><div class="fg"><label>Observações</label><textarea id="m-obs" placeholder="Observações internas (não saem na impressão)"></textarea></div></div>
-      <div class="brow">
-        <button class="btn bp" onclick="medSave()"><i class="ti ti-device-floppy"></i>Salvar Medição</button>
-        <button class="btn" onclick="medReset()"><i class="ti ti-eraser"></i>Limpar</button>
-      </div>
-      <div class="al ae" id="med-err"><i class="ti ti-alert-circle"></i><span></span></div>
-      <div class="al ag" id="med-ok"><i class="ti ti-circle-check"></i><span></span></div>
-    </div>
-  </div>
-
-  <div id="med-dia" style="display:none">
-    <div class="fcard">
-      <div class="fhead"><i class="ti ti-calculator"></i>Medição do dia — total por equipe</div>
-      <div class="sbar" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr auto">
-        <div class="fg"><label>De</label><input type="date" id="md-di" onchange="medDiaRender()"></div>
-        <div class="fg"><label>Até</label><input type="date" id="md-df" onchange="medDiaRender()"></div>
-        <div class="fg"><label>Equipe</label><select id="md-eq" onchange="medDiaRender()"><option value="">Todas equipes</option></select></div>
-        <div class="fg"><label>Medição</label><select id="md-med" onchange="medDiaRender()"><option value="">Todas medições</option></select></div>
-        <div class="fg"><label>Contar pela foto</label><select id="md-base" onchange="medDiaRender()">
-          <option value="antes" selected>Antes (o buraco)</option>
-          <option value="depois">Depois (o remendo)</option>
-          <option value="maior">A maior das duas</option>
-        </select><div class="hint">De onde sai a área de cada furo</div></div>
-        <div><button class="btn sm" onclick="medDiaLimpar()"><i class="ti ti-eraser"></i>Limpar</button></div>
-      </div>
-      <div class="brow">
-        <button class="btn bp sm" onclick="medDiaImprimir()"><i class="ti ti-printer"></i>Imprimir medição</button>
-        <button class="btn sm" onclick="medDiaPlanilha()"><i class="ti ti-table-export"></i>Exportar planilha</button>
-        <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;align-self:center">
-          <input type="checkbox" id="md-soval" onchange="medDiaRender()" style="width:auto"> Contar somente furos validados</label>
-      </div>
-      <div class="al ae" id="md-err"><i class="ti ti-alert-circle"></i><span></span></div>
-      <div class="al ag" id="md-ok"><i class="ti ti-circle-check"></i><span></span></div>
-    </div>
-    <div id="md-corr"></div>
-    <div class="kg" id="md-kpis"></div>
-    <div id="md-corpo"></div>
-  </div>
-
-</div>
-
 <!-- ============================================================ FUROS -->
 <div class="pg" id="pg-furo">
   <div class="ph"><h1><i class="ti ti-map-pin-plus"></i>Furos / Serviços</h1>
@@ -412,9 +343,8 @@ table.dt .ar{text-align:right}
     <div class="fcard">
       <div class="fhead"><i class="ti ti-clipboard-data"></i>Identificação</div>
       <div class="fr4">
-        <div class="fg"><label>Medição *</label><select id="f-med" onchange="furoOnMed()"></select></div>
         <div class="fg"><label>Nº do Furo *</label><input type="number" id="f-num" min="1">
-          <div class="hint">Numeração automática · sequencial na medição</div></div>
+          <div class="hint">Numeração automática · sequencial no dia</div></div>
         <div class="fg"><label>Data do serviço *</label><input type="date" id="f-data"></div>
         <div class="fg"><label>Equipe</label><select id="f-eq"></select></div>
       </div>
@@ -422,12 +352,6 @@ table.dt .ar{text-align:right}
         <div class="fg"><label>Bairro / Rua *</label><input type="text" id="f-rua" list="dl-ruas" placeholder="Ex.: Rua Farroupilha">
           <datalist id="dl-ruas"></datalist></div>
         <div class="fg"><label>Serviço *</label><select id="f-srv"></select></div>
-      </div>
-      <div class="fr4">
-        <div class="fg"><label>Largura (m)</label><input type="number" step="0.01" id="f-larg" oninput="furoCalcArea()"></div>
-        <div class="fg"><label>Comprimento (m)</label><input type="number" step="0.01" id="f-comp" oninput="furoCalcArea()"></div>
-        <div class="fg"><label>Espessura (cm)</label><input type="number" step="0.1" id="f-esp"></div>
-        <div class="fg"><label>Área (m²)</label><input type="text" id="f-area" readonly></div>
       </div>
       <div class="fr"><div class="fg"><label>Observação</label><input type="text" id="f-obs" placeholder="Opcional"></div></div>
     </div>
@@ -461,7 +385,6 @@ table.dt .ar{text-align:right}
     <div class="fcard">
       <div class="sbar">
         <div class="fg"><label>Buscar (rua, serviço, nº)</label><input type="text" id="fl-busca" oninput="furoRenderLista()" placeholder="Digite para filtrar..."></div>
-        <div class="fg"><label>Medição</label><select id="fl-med" onchange="furoRenderLista()"><option value="">Todas</option></select></div>
         <div class="fg"><label>Serviço</label><select id="fl-srv" onchange="furoRenderLista()"><option value="">Todos</option></select></div>
         <div class="fg"><label>Data</label><input type="date" id="fl-data" onchange="furoRenderLista()"></div>
         <div><button class="btn sm" onclick="furoLimparFiltros()"><i class="ti ti-eraser"></i>Limpar</button></div>
@@ -488,7 +411,6 @@ table.dt .ar{text-align:right}
   <div id="hist-dia">
     <div class="fcard">
       <div class="sbar">
-        <div class="fg"><label>Medição</label><select id="h-med" onchange="histRender()"><option value="">Todas</option></select></div>
         <div class="fg"><label>Equipe</label><select id="h-eq" onchange="histRender()"><option value="">Todas</option></select></div>
         <div class="fg"><label>Situação</label><select id="h-st" onchange="histRender()">
           <option value="">Todas</option><option>Pendente</option><option>Validado</option><option>Devolvido</option></select></div>
@@ -498,7 +420,7 @@ table.dt .ar{text-align:right}
     </div>
     <div class="card tw">
       <table class="dt"><thead><tr>
-        <th>Data</th><th>Equipe</th><th>Medição</th><th>Ruas</th>
+        <th>Data</th><th>Equipe</th><th>Ruas</th>
         <th class="ac">Furos</th><th class="ac">Fotos</th>
         <th class="ac">Pend.</th><th class="ac">Valid.</th><th class="ac">Devol.</th>
         <th class="ac">Situação do dia</th><th class="ac">Ações</th>
@@ -569,7 +491,6 @@ table.dt .ar{text-align:right}
       <div class="sbar" style="grid-template-columns:1.5fr 1fr 1fr 1fr 1fr auto">
         <div class="fg"><label>Buscar</label><input type="text" id="rl-busca" oninput="rfLista()" placeholder="Código, endereço, bairro..."></div>
         <div class="fg"><label>Equipe</label><select id="rl-eq" onchange="rfLista()"><option value="">Todas equipes</option></select></div>
-        <div class="fg"><label>Medição</label><select id="rl-med" onchange="rfLista()"><option value="">Todas medições</option></select></div>
         <div class="fg"><label>Serviço</label><select id="rl-srv" onchange="rfLista()"><option value="">Todos serviços</option></select></div>
         <div class="fg"><label>Situação</label><select id="rl-st" onchange="rfLista()">
           <option value="">Todos</option><option>Pendente</option><option>Validado</option><option>Devolvido</option>
@@ -590,7 +511,7 @@ table.dt .ar{text-align:right}
     <div class="card tw">
       <table class="dt"><thead><tr>
         <th style="width:34px" class="ac"><input type="checkbox" id="rl-all" onchange="rfSelTodos(this.checked)"></th>
-        <th>Cód.</th><th>Data</th><th>Equipe</th><th>Endereço</th><th>Bairro</th><th>Região</th>
+        <th>Cód.</th><th>Data</th><th>Equipe</th><th>Endereço</th><th>Bairro</th>
         <th>Serviço</th><th class="ac">Fotos</th><th class="ac">Status</th><th class="ac">Ações</th>
       </tr></thead><tbody id="rl-tb"></tbody></table>
     </div>
@@ -675,8 +596,6 @@ table.dt .ar{text-align:right}
     <div class="fg" style="margin-top:10px"><label>Bairro</label><input type="text" id="lo-bairro" placeholder="deixe vazio para não alterar"></div>
     <div class="fg" style="margin-top:10px"><label>Serviço</label><select id="lo-srv"><option value="">— não alterar —</option></select></div>
     <div class="fg" style="margin-top:10px"><label>Equipe</label><select id="lo-eq"><option value="">— não alterar —</option></select></div>
-    <div class="fg" style="margin-top:10px"><label>Medição</label><select id="lo-med"><option value="">— não alterar —</option></select>
-      <div class="hint">Use para encaixar na medição os furos que o campo lançou como avulsos.</div></div>
     <div class="al ae" id="lote-err"><i class="ti ti-alert-circle"></i><span></span></div>
     <div class="brow" style="justify-content:flex-end;margin-top:14px">
       <button class="btn" onclick="document.getElementById('lote-modal').style.display='none'">Cancelar</button>
@@ -919,17 +838,14 @@ table.dt .ar{text-align:right}
         <i class="ti ti-x"></i>Fechar</button>
     </div>
     <p style="font-size:12.5px;color:var(--text2);margin:10px 0 11px">
-      Altere direto na tabela — cada campo é salvo ao sair dele. As dimensões alimentam a
-      <b>Medição do Dia</b>; a coluna “Antes” é a base padrão do cálculo.</p>
+      Altere direto na tabela — cada campo é salvo ao sair dele.</p>
     <div style="overflow-x:auto"><table class="dt" style="font-size:12px"><thead><tr>
       <th class="ac">Furo</th><th>Bairro / Rua</th><th>Serviço</th><th>Equipe</th>
-      <th class="ac" colspan="3" style="background:var(--blue-bg);color:var(--blue)">Antes — L × C × E</th>
-      <th class="ac" colspan="3" style="background:var(--green-bg);color:var(--green)">Depois — L × C × E</th>
-      <th class="ar">Área (m²)</th><th class="ac">Fotos</th><th class="ac">Ações</th>
+      <th class="ac">Fotos</th><th class="ac">Ações</th>
     </tr></thead><tbody id="rf-ed-tb"></tbody></table></div>
     <div class="brow" style="margin-top:12px">
       <button class="btn bp sm" onclick="rfDiaAddFuro()"><i class="ti ti-plus"></i>Adicionar furo neste dia</button>
-      <button class="btn sm" onclick="edImprimir()"><i class="ti ti-printer"></i>Imprimir esta medição</button>
+      <button class="btn sm" onclick="edImprimir()"><i class="ti ti-printer"></i>Imprimir este relatório</button>
       <span id="rf-ed-info" style="font-size:12px;color:var(--text2);align-self:center"></span>
     </div>
     <div class="al ag" id="rf-ed-ok"><i class="ti ti-circle-check"></i><span></span></div>
@@ -1020,15 +936,15 @@ table.dt .ar{text-align:right}
 const LOGO_ORGAO_PADRAO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJ8AAABrCAIAAADmese4AABAYklEQVR4nO19d3xcxbX/mZlbtheVVW+WZEvuveFCNcaG0GviZxNiWoDwSyBAXvKANMKjhpBQAw69g8FgcMW9S7ZlW1aXrLrSrrbv3jrz++OuZLkRJ9jW+zy/87kfafaWmbnzvefMOWfOzCDGGPxvoSVLlni7uzFCCGFB4O+55x4ASCQSDz74YEFBga7rmqbpup6VlXXLLbcAQFNT03PPPYcQ0nXd7/e/+uqrJpNpsF/iVBI32BX45xSNRnVddzqdALB3796NGzc6nc7u7u7W1tann3564J0zZszYum37tKlTOY7bs2ePcVLX9ezs7Ouuu06SpHg8LknSpk2bjEvxeLy4uBhjLEmS2+0WBGFgbsuWLVM1LSszC2N84MCBRYsWGue7uroyMjIQQqf9zb83/U9BV9d1SZIsFovRatu3b29qalJVVZIkxpgsy3fddRcAlJSUPP/88+PHj0cIdXd3H5VJSUnJylWrtmzZLAhCU1MTAJMkyeFwBAKBrVu3hkIhWZYxxu3t7cuWLQuFQtFotKGhAQC6u7sffvhhjPHA3CilGBOb3Y4QqqurNU5Go9Hly5dTSo2b7Xb75MmT8/PzAUBVVcbYUZ/I4NIgo9vR0bFjx86cnJyWlhav1zts2NALLrgAAOrr62fNmmWgm0gk1qxZ09jYKElSdXU1Qsjn80WjUYObj6KJEyZ8tnRpSXFxVlZ2JBJdvXrVvHnzxowZE4vF6uvrDbGcnp5eWVm5adOm0aNHG5+OzWYrLi4+KqtRo0Y9+eRTl152WTQa9fl8K1euHD58+L59+yZNmiQIQjQajUQiK1euHD16tHH/K6+8Ul1dXVpa6vF4OI675pprTnfr/VMaZHSzsrI6Ozvy8vPHjx9PCPnyyy+nT5/u9XrdbvfGjRutVmt1dXV6errNZvv4448JIZs2bZo8ebLBdsOHDz82w0mTJiGEqqsPTpk6RRCE8847VxAExlg8Hp88eXIsFovH44lEIh6PDxkyJJFIdHR0CIJwzz33EEKOyiolJcXlcsaiUYfDft31169ds4ZS2tPTE4vFenp6AoGA1WpVVVWW5e7ubqvVunnz5tLS0kAgcPDgwUWLFp2B1vunhM6AVkUpjcfjO3bskGV57ty5R13Vdf35558vLCrCCK9fv66oqMjr9d57772JRKKxsXH58uVpaWkIob179zqdzvT0dEEQ4vF4R0fHiy++eKISfT7fnXfeecONN3Icx3Ncc3NzZmYmIUSSpNra2tTUVE3TEolEd3e3pmnPPvvsifJZu3atz++fOmUqxqilpWXTpk2KoowfP/7TTz8tLCzMzs4GAL/f/+6776amphJChg4d2tvbe9NNNx37mh0dHTt37iwvLy8qKiKEnJlu+7Sj29bW9uZbbzscTofTGQz03n3XT497zz/+8UZ6eprL5XK5XDzPi6KYSCREUeQ4TtO0WCzW2tra2tra09OjKEplZeWSJUtGjRp1okLj8fg111zz5+f+8vnnnzc21NfU1Nxwww3XXHON3+9fvHhxTk4OAFx66aUtLS3BYPCPf/zjd9T/xRdfDIVCGRkZPM9nZ2e73W5VVSORiM/na2trC4VCiUTC6/VyHJdIJIzP98c//vGxkmD79u0ZGRne7u54LFZXV7d48eJ/qzn/NTr1kjkUCvn9/kQiMWTIELPZnJOT4/F4eEHUdb2xsfHgwYNlZWVHPZKbm3vPPXd/+ulnRUOGMMYsZrPdbk8kEuvXr49EIqqqEkIqKytHjhxpNptTU1PD4fDf//73Z5555igOYIxpmhaPx9euXVtaOnTZsi/+seT1qqoqAKCU7tixo6SkZO3atcbNgiBYrVZBELq7u202m9lsBoCjMvT7/UuXLv31r38dDodDodDOnTs7Ojo8Hk9vb288Hs/KyrLb7ZTSlJQUQkh+fv6MGTMMveFY2rx587Rp050up7fLO3PmTONkY2MjxgQhyMnJ4bhTj8Wpz/GFF14sHTqMcNyWLVt+8pOfIIRSU9wffPjR5ClTyoePWLVq1bHoAoDdbl+w4EfBYHDhwoUPP/KoSdN6enrWrl07ZsyYK6+8MhAIvPLKK59++qmqquPGjRs9erQkSe+9956iKGPHjgWAlatWjRwxUhSFWCwmiKbOrq5bb7tNEPivly830C0uLs7JyZk3b94vf/lLo8RJkybl5ubu3r172bIvAcH111330ksvZ2Vl+ny+u++++5133nE4HL29vXffffeePXt+9atfSZKEEPrpT386ZswYv9//+OOPz549u7Cw0GazdXZ22u32hx566EQKsyzLgUAAADZt3LR9+7bf/e53ABAKhT79bGl5+fAV33x9//33GRLl1NKpR/fuu+96+ulnMrKyOto7/va3F1RV27N3z+zZ5waDgbrauvPOnXWiBxFCbrc7IzOztqamvb39l7+8nzG2bNmy7OzsmpqaoqKiuro6AGCMZWZmdnd3v//++wv+Y+H27TsmT56UlZ0dCAYVWY5GIyazeeWKFZIkDy8vHzpsGMdx7e3tnoyMmTNntre3jx49OiUlBQBisdjmzZttNtvKVSsnTpi0adMmi9WKCedwOhsbm7zdPZFotK629sILL8zOzg6FQgCAMU5LS/vwww9bW1v379+/f//+zMzM2267LRwOezye77CFMMY+n6+mpiYjM3PylKmPPfan4SNGtB46lO7JqK6unj179umAFk4Hular9dZbF7/2+pIZM2bW1dW2trVOnz49v6BQUWRBEK688soTPUgp1TRtzJgxo0aPLh06FCHEGItGo263u6CgwOfzYYwFQaiurr7gggva2tpGjhz50osvPPzob3VKx48dt3PXroLCQovFYrGYV61c5XK5srOzb7/tdrPZ/MknnzBGKysrKaVjx45dtGgRY0xRlN27d+fm5h6orp40ebIg8DPOOadq376hQ4fFE4nysmFr136bm5tLKX377bctFouiKFarVZblCRMm7N6926jzsGHDrFZrcXFxQUGBqqo8zx/31Xie/+EPf8TzPMfzFoulqamppqZm4qTJVNe7OtuvvPKKU46CQafFIsrIyBheXtbYUF9eXj5+/Hifz79t62ZFUfbu2ZOfl3v11VcPvDkej3d5vaqiNDc3E8Ltq6oCQIqijBw5KhDodTqdtbW1M2fOHDVqFM/zZWVlVqtV1/V4PN7S0tLb27u/qioYCg4fPtLQWpsaG0PhUFlZmSc9vaura+XKleeff35HR3tNTc3mzZs5jjv33HPXr19fW1s7d+5ct9vt9/s5QkSRb2pqzsrKcjmdlZUVdrtj5YoVHk96KBSy2+333nvvTTfdtHz58rFjx4qiGI/HZVkuLCzs7u42m80VFRW6rtvt9vfee++mm27avHnzmDFjzGbzQKRDodDnny9NSUlFGLtcrgkTJ2ma1t3tbWxo+M9fPXQ6IDDoNOrMjz32WEpKSkVFxYgRIxBCfr9fkqSmpqYrrrji/PPPj0QisVgsJyfntdeXTJgwoae722azVlcfPHSo5YILLwqFQmVlZYqiMEo3bFhv6KVmszkQCKSlpXm9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";
 const LOGO_EMPRESA_PADRAO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIEAAABdCAIAAAANPpJTAAAdjElEQVR4nO1deVxTx/Y/k4QQwg4CScAFRBPckAJFKYr7o9a6a7V1qbVi69I+l27WFW39/aqvWrfXPtFWa7UurVVRcaH6BERABQUVRUEUNwiEJYRsd+b3x4WbS0hCgKD29+n3Mx+4d+4sZ+bMcubMmQkiBMPfeKHgvGgCWCCYPD1Ist4AVrMoflj07pQpOq3mBdLV1nhpeFB6hKSHQuFS0JcAIMZbUV7x8y97BfYOo94c8fTJoxdIYNvhJeCBMo+kdSN3PwWiAgAgFIsF8PjxY/ohIeGEn6R9aHCv0pJnL4LKNsQL5QHWkKvDSM4oAMrgSSh2kIfFxYYvANnXc8UiSXRUFKXXPzcy2xoviAcEk3sryKVg0BQ1+tSAB/cLC42/E5KSepFvx5/57nSNRt2mZD4fvAgeVKSRS72h5FdAxNRnDCzvhw8emEvmp10/Ozk4fr9tK6Eoc2H+Eni+PMAanNmf3HoXwLycQzAQLfNWVlZmKT1C5s6dLxA4XE5Ptx2VzxvPiweEkPxPSXoI0jc5oxLAhhGmorKyybT1en1En77dpFKNRgPEZN96qdH2PKBUcG81udQN5EcazL0WoFcyj1WVVVbmc/tOvlDg8OHs2L/cJNGWPMA6ePAtyQghJXsAmrMaxyrmUalUWgjYGP/ZvsNJ6Hj+zyTy1+kQbcYD5U2SEUIe/dCCqATXMs9ana650TEmgwcP7RIQUKuqaUHuzx9tw4PyP0nOOCDNrr46YMOMjXELZZ7C+0Uuzq7/89Uagl92hVgb8IBSkdtzmjf4GIFVazwurxXJ4C+XLg8M8G85Jc8FtuYBISRnEkDrxmIOl3kUCoWtpKisvKKVKbQ1bM0DBKC+19o0OIZ6b9fOs7WptTJ+26MNxiLS6lUr35t57NChQysTe/nFI9uPRa0tNbIDOw/mbciQIa0l6aWHzfsBamXvJ1xPQIYU3po8CaGXfzhpFdqCB60Cp9NidiKOTs5ikaiVab7ksPmc3LqBiO8LXiOM/FJSU1qVZktRVFhg2EN9tAPabOO9LdZoLe0KvHYo5GTj6B39/RcvWtBaopoDSq9ftuSLgIDAOn0HIfjRDnypByhS2mKOf2nGIqcIFHoeOPYmP/7PuvWrVi5vMU3Nwo2cax7u7l+v/V8AeFB0HwAACMLVCCiSN5NcGchW69oEbSAXNZMLBOxRUDzquQs4dubCIISWrlhZXl42dOjgtpuhVTU1bw4f3qtXiFJZp2jKysoCAKAqDVsa2ickPYTkL2u5JqYR2mCN1qzcvSZw+lwFt35MzJJnz8ypPF3d3RNPn8nNze3QoX0z8rCCJELIkcO/Ozs5nziZyPbPuZ4DAKTGaD8Vg/wAudQbFMk2GZparo0xDQLW8oHnicJS2WJoZYUiSCqrVWvKFeVgvrXLunUrLCpKS03u338gtoU+Tlld3T0oqPjR48af7ubnAwBoixt/AtCTvPeB2w6FngauY2sIeAH7yQSEqPteFH6RqegqheKV4GAPd89nJaVgommZWPf1fa1fTa1qyeefWZGhWXYSjBd8NN/N1c0kAwCgsroaAEBXajZtSk4yQsmdT60gwyzaYiyy0A8Q+Ezj9LkKLqH0e5m8dPSbb3p4trt2PadBGg1B0rqRe8uBqmV78vn81WvXVlQqYv4xrAWUXsnM8Pby2rR5q4XdnrrlIWV5EiZQdoRc6gHK6y0gA56rXMR1QyFnUcCXdPPX6/VxK5aLvEXHEo43rIXGVUIAMJTsJxkh5MH3RvooZxfX44mJ+fm3JRJxswhduWJVebnCchg/X18AAGRFLREdqclrFgEMbM4DM23KbSAKvwgCPwAghJw8fszN2XlV3Bpsqg2aV04QeLSBpIdBVbbRh4DALg+Ki1OS/9s4rrlGrlbXmvliQEREBAAA16XJkADQYrm87ddoSIi6/YyCvgfEBYCSZ097du8+YsSoWrVp8xZCGvUE0jBBoiI33iLXJxkNEQihvlH9VLWqL5d8bo2KSavVNhlm1JjRAADCzk2GBGj50qhN52QEXhNRn6vg+ioAqGpqYmfOFIskt2411WeNatCkMrwmi2SEkKcHjRo6394+7quva2qUgwYNsJyJ3grLMGdnZwBAzsFWVbA1Q5YptBEPeOA9EfW9hQJXAyBCSHraRRcn5x07f7QibqPBgzK3NY+hcClOC2k8Z9o7OJxJ+rP4YZGnh4fJmACgUTex3A0PD7Xj2wMAIAHw2lkODNDypYLteYB6HEB9clDn1XTbKbpf2CUgIDIyykoKTUwQlMpEOCY7qCUZvcnd5Y13sMV+7Z/JS08lnjQZscmx6LvvvqvPA6GA1ZYD19HSIrSBXOTUje6VGnXt1LffDvDvXHi/kWFvs0A1aeZFoHQ/SQsGeYJRa0QIvdq3r8k4Op0ly+3+/aIi+rAieg6ErlsBmdWm0Lk1RadptMlYpNfptny30VHotHffr82O3LgjmB2LjKAl+Ytwel+wTkbUmbeeFwqFiadPG01LyHMIisgiwt7mk2whD2ytqwDISLs4cOAgtaZpqcMkCADBGHENphVANW1yygBhBbk+CuxEKDQJkKXSqWtND3EchJ4+e2IvEJhK3Y4TvB8qM8nNqTZUYtu+Hxw8eLDFDAAAIARxGlKlb565IwCA7im51IvcX2dh48XkWOTnK3ny9Imjk7OlxF3DUXgmCHs1myozsD0PrJG7m0LDJqZvYjVrBhQ8iSdZw81+biSbznp/ZuGDonbe3gAElNlsc7+Eo0cwOzzPGQUfgE5xDSvwpZkPtNpWKdYJgHFh9NaaXpui5onpXAjRss56+nfqWFOj/H77dg6HCwSTmx+QnLfg3lImwJ49exwdhFlXLrPSQEj8ForIAvtOLScPANqCB03K3U2j4bRMqOaPRUxcbKZBEKLV6RBCvYN73r9fmF9QIKAN+lR3SEY4VJ4HACw/wQQvefpUq9OFhb0q69K1toZFD0eAXklEndcR0vKatD0Palpr7dxIMKKqW5wWMjdzIrRmdVxVdeWV7GvtO3akdRvk7gpy7U3A9VVMMDMqysvK6Yf8u3ednV3fHD683HBACIH3SM6rl5DAr2VE2p4HtbVN68IswMQaTd9yHpiTXRBCiz/7XOjoVPeufkDSg6G0kSRdH79GZRCiCCEnTiZ6tfOa+vbb5WXyOl+eK6OQby5szwO9xbWPNTCe2lozH1gB8mAzyRrWeKceIQxQVxaThdq771dvL58Z06a22ECfhu15oNbY+l6DFsim9UAIWzqhpq8kV6Lh0RYLHYb+R1GmGxYhZPfPvwj4go3/Wtfikz9tMBa1+vSLcVFw6xI0Y4NMHu8hmX1A+7RJUgghWoudm6KoRYs/ezU0tFZlSbVlDrbngapFdLBhrP3XtzJBM2L7o61NH1RBBAAwRemtuBbgalZ2eOgrzabuJRyLGvdoAq2bYMzZ4nOdTPs3DAQAgMAaHgDArbw7F84lWU1ZHWzPA53OxqfmUSsNPc2pm7gWFRI0CAYAhJCVPACAESNGNndiaAO5SN9qAzSjNVortWMaMyM+z8pdYgAC1l9RUqOqbe4pxLboB63lgbHOrjXHCwGIuVnXKsMsAgCEkMbKJQtQN3OFZHvdtfXd1gg8LnfGjHdjP5hNCEEI6XVaDperUWvu5Gty79TcuK+9W6yTK/TVKkqtJRot0eqIjgKKwnoKMAGEgMsBHgfxeIjPQ/Z8ZM9HQqGjp2h1py5HpV279OjZq0eP7q7u7kCAy+UirnPT/QshAKisrGhWT3z85Elgly7NKHhzErcKFNWMZsvhcF6L7DNl6tRBAwfcvVeYnZ399Zqvrl27VlT0gLLNuWI1XEuBU8YnGDgIeXp69JJ6vhJQESrl9eoi6Czhsvcs2FCUlzcry+ZqjtuAB03VHULI3d0tPCw0JiZm167dKalpKalpz/lqA0xIqbwsSV6WlFpPFQAA+HrzZ41yGxXt2N6H6yzkcoEDABVW35lRl1QzddjItvc6EoxdnF3MLRHsuFyBwF6t1el1upf/uKSAz2nnJVq+bGkHf/+Yf7xufcSiovt+zTlOamseEOLi6KRqndqODVRvwGrP53t4eri7ubm6urm6uQqFQkdHR0dHRy6Xy+VwEQJCCMZEp9fV1qqUSqWqRlVdXV1RUVFRUVFWVq7RaOrXvLYizSwUinIXNzfrw9t+LCIACCHry8rhIJG3j1giEUvEUmnX4ODeMpmsa9euAgcBh8Pl8mxKISEURWFMFdwryMnJycxIv3kr7+HDhw8fPqyoaMautWXYC0yfJrJAFbaVKy8rnTN7FheAY8ZxERIKBL4in4/mfph1OQNTeoIpjCkb0tByhymMqapKxbbN34W/EuLi5GjH5ZoriGWHKX2zsrYBD7RazacL/+nl4W6q0sHezm7q25P/PHuq+EGRXq99WWrcCocxpVCUX8u6umH9OlnXLtbzQFld+Zx4gCl94vFjYSHBxvUOIOsSuGrF8uysy+SvU+PWOK1GnXz+3JLPPu0m7cpFyBwPrl/LanMeqGqqv13/jR2Hw87Y3dl5xOsxeTdvUJTuhVfWc3AYU2WlJXM+iO3Uob0RP4T29vv27NZpNW3CA41GHR0Vyc6Sx0HzP5xdo6x+4ZXyAp1Opy3Ivx3VJ4LNCTsOZ87sWda0SKt4gDFVLi8Z0D+KmVojI149+sfvqhrlX2h8fw4OY+pO3q0VS790dBDQdcXncWNnvkfpLXGiaR6UPns6fNhQOsXuMumve/e88KL+JZyirPSThf/08vSgW+3KZV+q1apm80ClrB43aiQXIXs7u/GjR2rVtS+8YH85hzGlUlZFR71mz+NxETpx7EhjydUsDzas/8bezo6H0L49uzUa9QsvzF/dabWaw4cO2nE5Yh/v/Nt5lniAMXX1coaXh0dn/06nTh6nmrnc+NtZdhhT+/f94iwUTpowjpkkGvBAo66dPuXtV0NfefSw6IWT+//YaTXqlcu+9Pb0uHAuiWDKwINHD4tmTH1H+/ew87wcxtSdvJuTJoyt05sSjDHGNlaQ/Q0rQAipq3TE4eyM37F8uek7glxcXYa/Pnz+/HkBnY1P6spL5TNnzmwcRSgUduzUMeq1qKHDhtrbm9UjFtwr+OCDD4x9EfB4PLFYHB4WNmbsWB8fH6Pvz54+nTptet3WP4JTp06xTZLOnDmz7pt1xkki5OTkJAuSDR48eEB0NKd+z0yhULw18S3jwBzk6OjYtUvXgQMHDBk61GiDjRCSlJS0e9fulJSU2tpaOuugoKBJkyZNnTZV0PAAT1VVVfz27YcO/Xb//n2ajp49e743Y8aEiRM4HA5NmGEs+s8PP4h8fBhXUvKM0utu3bzh36kT47l48SKjDvXoUTE71pdLvvj9998+/vjjjh06MJ6bN2821x9v3MhlR09NSVEqq8+ePcPOdOGCBUax5s2dy4518MAB9teDBw+wvyYlnU1MPDllyjuMj0QsTk+/RAeWy0vZgbds2Xz69KnZsbF+vr60j1gkSjh2lElcoSiXSMT0p/DwMIrSY0x9/PFHdSlLJLm5OUzg5Av/FYtFHdq3f/r0CS2SUpT+p59+9JVIZDIZs7y1xAPa/+rVK4ynWCS6nddArjLiwaGDddXxoKhILBIx/kyZLfMg6+pV2v/cuT/Z/hWKciYKRek7BwSwv4aE9LbAA2293ubPpCQ2G+Ty0sY8SElJpgOfPXOG7f/s2VNCsE6r6RIYyHgqysuYkZ1dRY8eFROC9XodXQPLli41KvXq1atFPj4H6+uqadsWR6HBBoQQorLOnLR9h/bsXvnLL79YE4tBUFAQ+1UulzPPZ06frqmpWRW3ivF59vRZaan5623qMXDgAOYZY3zjxg0LgaUyKfuVTn/zli3V1QZDfIf6e6ARQsx4RQiJnRULALm5ufRGVnx8/C97fmFvarm7ubVr1+7hg4f0axM8IISsW2cYW/39/Xv1suos3M0bN9T1B3IQQosWLbImFoM//jjCPHt4eHQODGRev/12A4fDmTFjBodbRzzGOH57fJNp/rRrF/Nsb28f8eqrFgJfSrvEPPN4PD8/PwD47dBvjCeHw7GzMxxXdmddCJCTk6PX6wPraSaELF682FfiO/LNkWdOn9ZoNHPnzc3JzVmwsO6iRLOCUO/g3gghjDFt7WNnZ/fpZ59++OGHHGMDrAY4f/68vKzsxIkTGekZTGl/++2QlVcm792799y5c+np6RcuXAAAgUCwcOHCefPmMgGUSmVubu4777xjZ2cX3T/63LlztP++ffs+/8L0VSGbvvtOrdYcOHCgpKSE9nFxcbmec92kpHDo4KGU5JRDhw4V1/8mmLu7+/n/nnd1dcUYF7J+pAohxM7Ow91dXt8XtVqtXC4X+fgEdA4ouFdAexJCMjMzp02bjhCKjOy779dfGRaardDjJ46f/+/5wUOG0PGdnZ2FDg6WGQAAFIVra2sfFdf9oF9gYODpM6dDw8Isx2IgFAqdnJ1EYhFdPK1Wu3///us5huulNm7YgDGe+f5MAFi02NC3SktLb928ZTJNJydnOzs7ulMihAYOHHjl6hVzoppQKOTz+eX1BkVh4eHJyRe8vevu37awSW5UMzqdDhC6cOHC2LFjjUISQlJTL/p38q+7qA2g6TnZVyJhPOPjt1uWi+g5GWNq2NChjOe33/7LSrmImZMrKxTsKX3rli20v1gkiuzbl5YotBo1W3yaP2+ehTlZr9dJxGJm2rx+7ZpJuYiek3U6bYC/P+N5KjGRLlSP7t0Ns7pEzFbk9ImIYE/LVVWVdBR6Q3T5smUyqZSdkcjHJ8DfX6/XWTUnu7gYbGOPHjnaZHgAQAj16dOHeV2//l/WxGqQqasrWyrfunUrAKRdTCOEuLq6rl279uuvv163br1YbLi769BvhywkyOVymbZPCJk3b56FwDwer3fvYOZ148aNAIAQih4QzXgSTNg3GrKFArFY7OTk9OOPP7X3az93zhw3N7dVcatu5d0qvF/Yv39/JphKpaLlgqZ54ODgwDwXFBRYabTC5/MNL4S05AJG1mirp/RAyLJlyxBCSqUy8WRi4snExMRE9ohMMKm7jtQKVFRUWA7g4GD4DYbr16/TpZ71/vtMjoQQXf1JbEJITY1BXBw/YTxCqEappCjK29uwwBQIBPsP7F+5ciXjQ7ehpnnQrp3h6p6ysjK2cGapDEID5zDGzTXBLLhXoGfZb/eL6leuUOTl5QV26XIh+QLjUlKSPVgCyXsz3rOQJvsKisrKSsuNSdiQftpyMLh37/dmGrK4ePEi/aBQGG4S8PX1/fzzzwFg5sz3AODw4cNGB7YZI8Sw8DAvLy9owANUN9czoL0nvz2Z7XP2zBkLpDPo1bOBCGtOC2KE6dOnh4WG+Xfyj4qKon0cHBxiY2Pj47fv3LGToqiffmp4CxVCw98w3Ibw7NkzjflTQCNGvME8azSa1NRUcyEBICwsnHkmhNzOq7sLZs2aNdvjt9OMnzp16sIFC+Pi4kJ6hwCAvb39h3PmZF7OpCvKQSg8c+YMxjggoPOcOXO2bdu2cePGYcOGffPNNzweLzY29tixY3WFIK2zdTRqTYQQRkIgGAOr55qUqTDGpu+eIwRjzOFyma+YohCH0ziwUQqEEKO8mFdCMPtsGu3PJhJYR+EaJ2tEP8b43t17uTdy9Tp9QOeA4OBgLovaBiEp6u7du1nZ2Uql0s/Pr3///uzhHWxub/o3WgDbn8P5f4KWyREtwt88MIEpU6b26x+9csXK55MdBwCAkEWLFg0aNGjQwEEURW3cuFHaVRokC5JJZZUVlUFBQTKprFtQt7Fjx6nV6jeGvyGTyuhjb/379Z8+bXqQLEitVlOUfuKEiZF9I8eNG0c3otGjRveL6hcR0Yf+/d39v+6PjIzs2bNXVZXhSMWiBQtlUplMKguSBbGli1u3bkml0tciX0tOTgaAe/fu9ezRMzg4eOGChYSQ9evXDxgwkJ6KXo95HQCWLl06IHpAeHi4RqOhKZd2lcpkQfPmzqNfZbKgaVOnYYzj4+OlXaX01P3B7NkAoKyuHhA9ILp/9JIlSwCAoqh79+7qtNq0tDSM8YOiBzKpTCaTyaSyuLg4TFF9Ivr069dv6dKlzFyIMZZ2ldI8o/R6ukTSrlKZVLZ1yxa69oJ7Bf+8+2c6/NmzZ6VdpQZFJCE4IeHYqJEjKUr38EHR5s2b1q79WuTj8+TJY3oFKBGLe3TvjjElEYuHDB68auVKWpdbUaGIj98+buxYsUhUU6OUSaXDh7+OMXXlcuapxMTRo0b5SiQYU+9On96pY0edTtstKEhVoyQEvx4TwywvP5g9WyIW63Ra9uL5yuVMsUiUn3+HEDx8+OsajVrk47Nt21ZaRbx8+bLVcXEiH58N335LCI6MjEy7ePEf/xim1+s0GvXy5csIwTNmzBD5+OTl3aLpHzpkCE3/qJEjN2/aJPLx0ahrCcFTpryj02k7dez46SefEIJ/+OH727fzevboERzcixD8WmRkl8DAgoJ7Ih+f+O11CoLXY2J27txBCP7qqzVVlRVs3fUnnyxmihDZt6+vREIILi5+KPLxWbFieWlpiUQsXrv2a0LwrFmz/Hx9p0+bZtBd+/v7Z2Rk+Pm2X7lyFbMptnz58o/mf0SPiVqtdvv27XZ2drGxsXPmfAgA/9727593/zyuXhmi1eoqKir8/f0RQiGvvDJk6JDMzEwej4cQ8vb2VqvVQEhVVVVAQOchg4fs2LmD3RMJIQv+uWDN6jWMz++/HyaEBHbuDAAJCQnp6ekA4NXOi5Y6LmdeBgBZkGzdunU5OTkA0Mm/0/Vr19v7tY+Njf3iiy8ad/aKiooNGzYIBAK2+o+GQqFQq9Xh4WEAMGvWLD8/P7lc7uToBABOTk7Mr9YePnz4o48+evz4cWho6JIvlnRo38Hdzd3J2YoTzvXw9PTk8njbtm5Tq9UODgKJRJKWlkZ/4gBAx44dMy9nhoSEHD9+fNb7s+gPcXFxmzZvogUyPp///vvvazSax48f00u2P//881L6JTd3dzowLZIh+tZ3hBKOHePz+fR5UrrDcjicjMyM8RPG5+XlDR40mC3RIoQ2bNywdJnh0izC+nvs6FEHgQAAcL38RqsbT58+zbe3HzVylE6rdXV1vXzlckRExKnEUxPGT2hcfjc3t2nTpqlUqupq4+tHaJoxAahT/N1ECNF5sYkcM2bMpk2bJBLJ/PnzT50+5eHhERcXx2htrQTBmM/n5+bmDhs2bMzYMVVVVYUFBXU8OHb0WHFx8fHjCZMmTXJ2qeMtLWgzx53pNnjlyhVAKCYmJj8/v+4+7vp6cRA6XL5yGWNcWVFx+86d8RPG03rv/Px8v/btdXr9zh07N2/e/OOPPzZQYzD0EcIcDR8zZjRC6OTJk4SQo0ePyYKCOFzug6Ii+ka5SZPeAgAOQmfOnFar1XK5PPnChTt37hw+/PuUqVOMRG8Gnp6eAHAs4Vi3bt0AICs7mxCiUCjc3N14PN4fhw8DwO28vLKycqlUWl1VTTAuKyszbJagugqZPHlyj+7dr2Zd9fX1da9vgvVBEKlHYwLu3r2rp/R79uzZvHlzUFDQxAkTAGDXrt1Arw8IIadPnbpx42Yn/06jR4/Oyclh9pi8vLzkpXJ7e/sxY8fs27fPQeAwZuwYhUJx8uTJmJgYDw+PpKSkkmclE9+aiBA6fPjw0SNH35v5XnR0NBBy7tz57Ozsjh07vDlypJ2dXVZWVvKFZCcnp3emvMOoz1JTU4uK6m6gDQ0NlUrrdq8KCwuPJxy3t+ePHTfO09NTpVIdPHiwqrJqwIABPXv1zM7ODu7VC3E4qampj4ofTZg4ISkp6fq1675+vhMnTkQIXbiQXFz88I033nB1dd23d5+bu1tMTMyv+351cXUZPnz4lctXkpOT27XznDBxokAgUKlUhw4eyr2R+87bbwf37g0AR48cKSgsDAoKGjZsmFKpZBa0PC5v9JjR+/fvl8vlUa+9Fh4ezqzv9u7dy1T35MmTExISlErl5MmTVSrVH3/8gQDZ8fmRkX0lEklKSgqtBThx4oSLi0tUVJQtz0Kpa1Xjx48rrVd6/4VcRYUiiLXJ/pzd/wFDL6/dxXprmQAAAABJRU5ErkJggg==";
 
-const SYSTEM_VERSION = '20260902-018';
+const SYSTEM_VERSION = '20260903-020';
 
 /* ------------------------------- BANCO ---------------------------------- */
 const DB_NAME = 'RRBARROS_DB';
-const DB_VERSION = 5;   /* <-- SEMPRE incrementar ao adicionar store novo */
-const STORES = ['medicoes','furos','relatorios','equipes','funcionarios','servicos','config','historico','dispositivos','usuarios','fotos'];
+const DB_VERSION = 6;   /* <-- SEMPRE incrementar ao adicionar store novo */
+const STORES = ['furos','relatorios','equipes','funcionarios','servicos','config','historico','dispositivos','usuarios','fotos'];
 /* Stores que trafegam na nuvem (config fica sempre local ao aparelho).
    As imagens em si ficam no Storage; aqui trafega só o endereço delas. */
-const SYNC_STORES = ['medicoes','furos','relatorios','equipes','funcionarios','servicos','historico','dispositivos','usuarios','fotos'];
+const SYNC_STORES = ['furos','relatorios','equipes','funcionarios','servicos','historico','dispositivos','usuarios','fotos'];
 let db = null;
 
 function initDB(){
@@ -1039,7 +955,6 @@ function initDB(){
       STORES.forEach(s=>{
         if(!d.objectStoreNames.contains(s)){
           const st = d.createObjectStore(s,{keyPath:'id',autoIncrement:true});
-          if(s==='furos'){ st.createIndex('medicaoId','medicaoId',{unique:false}); }
         }
       });
     };
@@ -1423,10 +1338,6 @@ async function syncBaixar(){
       if(local && (local._ts||0) > new Date(ln.atualizado_em).getTime()+1500) continue;
       const rec = {...(ln.dados||{}), uid:ln.uid};
       /* Os ids locais de cada aparelho são diferentes: o vínculo real é o uid da medição. */
-      if(ln.store==='furos' && rec.medicaoUid){
-        const m = (await dbGetAll('medicoes')).find(x=>x.uid===rec.medicaoUid);
-        if(m) rec.medicaoId = m.id;
-      }
       if(local){ rec.id = local.id; await _rawPut(ln.store, rec); }
       else { delete rec.id; await _rawAdd(ln.store, rec); }
       total++;
@@ -1451,7 +1362,7 @@ async function syncAgora(silencioso){
                   if($('pg-hist').classList.contains('on')) histRender();
                   if($('pg-furo').classList.contains('on')) furoRenderLista();
                   if($('pg-rf').classList.contains('on')) rfLista();
-                  if($('pg-med').classList.contains('on') && $('med-dia').style.display!=='none') medDiaRender(); }
+                  }
   }catch(err){
     console.error('Erro de sincronização:', err);
     if(!silencioso) alerta('sy-err','Falha ao sincronizar: '+esc(err.message||err), 8000);
@@ -1562,8 +1473,8 @@ function syncCopiarCodigo(){
 
 /* ------------------------------ PERFIS ---------------------------------- */
 const PERMS = {
-  g:['dash','med','furo','hist','rf','eq','cfg'],
-  a:['dash','med','furo','hist','rf'],
+  g:['dash','furo','hist','rf','eq','cfg'],
+  a:['dash','furo','hist','rf'],
   b:['furo','rf']
 };
 const HOMES = {g:'dash', a:'dash', b:'rf'};
@@ -1585,16 +1496,11 @@ function go(pg){
   document.getElementById('n-'+pg)?.classList.add('on');
   window.scrollTo(0,0);
   if(pg==='dash') dashRender();
-  if(pg==='med')  medRender();
   if(pg==='furo') furoRefresh();
   if(pg==='hist') histRender();
   if(pg==='rf')   rfRefresh();
   if(pg==='eq')   eqRender();
   if(pg==='cfg')  cfgRender();
-}
-function medStab(el,tid){
-  tabSwitch(el,tid,['med-form','med-dia']);
-  if(tid==='med-dia') medDiaRender();
 }
 function furoStab(el,tid){ tabSwitch(el,tid,['furo-form','furo-lista']); if(tid==='furo-lista') furoRenderLista(); }
 function eqStab(el,tid){ tabSwitch(el,tid,['eq-eq','eq-fun','eq-srv','eq-usr']); eqRender(); if(tid==='eq-usr') usrRender(); }
@@ -1706,11 +1612,14 @@ function cfgRender(){
 }
 async function cfgKpis(){
   try{
-    const [med,fur,eqp,fun] = await Promise.all([dbGetAll('medicoes'),dbGetAll('furos'),dbGetAll('equipes'),dbGetAll('funcionarios')]);
-    const fotos = fur.reduce((s,f)=>s+(f.fotos||[]).filter(Boolean).length,0);
-    const bytes = fur.reduce((s,f)=>s+(f.fotos||[]).filter(Boolean).reduce((a,b)=>a+b.length,0),0);
+    const [fur,eqp,fun,fts] = await Promise.all([dbGetAll('furos'),dbGetAll('equipes'),
+                                                dbGetAll('funcionarios'),dbGetAll('fotos')]);
+    /* As fotos do celular ficam na store 'fotos'; as antigas, dentro do furo. */
+    const fotos = fts.filter(x=>x.url||x.arquivo).length
+                + fur.reduce((s,f)=>s+(f.fotos||[]).filter(Boolean).length,0);
+    const bytes = fur.reduce((s,f)=>s+(f.fotos||[]).filter(Boolean).reduce((a,b)=>a+b.length,0),0)
+                + fts.reduce((s,x)=>s+String(x.arquivo||'').length,0);
     $('cfg-kpis').innerHTML = `
-      ${kpi('Medições', med.length,'','bl')}
       ${kpi('Furos lançados', fur.length,'','gn')}
       ${kpi('Fotos armazenadas', fotos,'','am')}
       ${kpi('Equipes / Funcionários', eqp.length+' / '+fun.length,'','pu')}
@@ -1727,47 +1636,100 @@ async function cfgKpis(){
    Quem abre pelo navegador vê só a primeira. */
 const CANAL_SISTEMA = 'https://gedremsisep-lgtm.github.io/rr-barros-app/';
 function noPrograma(){ return typeof window.RRB_CASCA === 'object' && window.RRB_CASCA !== null; }
+/* Mesmo formato do app: uma linha para a casca, uma para o conteúdo e uma
+   dizendo por onde está rodando — para o suporte saber qual das duas atrasou. */
 function cfgVersao(){
   const el = $('cfg-versao'); if(!el) return;
   const casca = noPrograma() ? window.RRB_CASCA : null;
+  const modo = modoDeAbertura();
   const linhas = [];
-  if(casca){
-    linhas.push(`Programa do Windows: <b>${esc(casca.versao||'?')}</b>`);
-    linhas.push(`Sistema em uso: <b>${esc(SYSTEM_VERSION)}</b>`
-      + (casca.conteudo === 'atualizado'
-          ? ' <span style="color:#7A828F">(atualizado sozinho)</span>'
-          : ' <span style="color:#7A828F">(veio no instalador)</span>'));
-    linhas.push('Rodando pelo <b>programa instalado</b>');
-  } else {
-    linhas.push(`Sistema em uso: <b>${esc(SYSTEM_VERSION)}</b>`);
-    linhas.push('Rodando pelo <b>navegador</b>');
-  }
+  if(casca) linhas.push(`Programa do Windows: <b>${esc(casca.versao||'?')}</b>`);
+  linhas.push(`Sistema em uso: <b>${esc(SYSTEM_VERSION)}</b>`
+    + (casca ? (casca.conteudo === 'atualizado'
+        ? ' <span style="color:#7A828F">(atualizado sozinho)</span>'
+        : ' <span style="color:#7A828F">(veio no instalador)</span>') : ''));
+  linhas.push('Rodando pelo <b>' + (modo==='programa' ? 'programa instalado'
+            : modo==='endereco' ? 'endereço de publicação' : 'arquivo baixado') + '</b>');
+  if(modo === 'programa')      linhas.push('<span style="color:#2D7A3A">Atualiza sozinho ao abrir.</span>');
+  else if(modo === 'endereco') linhas.push('<span style="color:#2D7A3A">Atualiza sozinho: avisa e recarrega.</span>');
+  else linhas.push('<span style="color:#A15C00">Não atualiza sozinho — cada versão vira um download. '
+                 + 'Abra pelo endereço fixo para acabar com isso.</span>');
   el.innerHTML = linhas.join('<br>');
+
   const bt = $('cfg-ver-btn');
-  if(bt) bt.innerHTML = `<button class="btn" onclick="procurarAtualizacaoSistema()">
-      <i class="ti ti-cloud-download"></i>Procurar atualização</button>`;
+  if(bt) bt.innerHTML =
+      `<button class="btn" onclick="procurarAtualizacaoSistema(false)">
+         <i class="ti ti-cloud-download"></i>Procurar atualização</button>`
+    + (modo!=='programa' ? `<button class="btn" onclick="abrirEnderecoFixo()">
+         <i class="ti ti-external-link"></i>Abrir pelo endereço fixo</button>` : '');
+
   const rod = $('sb-versao');
   if(rod) rod.textContent = (casca ? 'programa '+(casca.versao||'?')+' · ' : '') + SYSTEM_VERSION;
 }
-async function procurarAtualizacaoSistema(){
-  limpaAlertas('cfg-ver-info');
-  alerta('cfg-ver-info','Procurando...', 0);
+/* Como este sistema foi aberto decide se ele consegue se atualizar sozinho:
+     'programa'  — o .exe instalado: a casca baixa e troca o conteúdo;
+     'endereco'  — aberto pelo endereço de publicação: recarregar já traz a nova;
+     'arquivo'   — .html baixado e aberto direto: cada versão é um download novo,
+                   e é justamente isso que dá trabalho. */
+function modoDeAbertura(){
+  if(noPrograma()) return 'programa';
+  if(location.protocol === 'file:') return 'arquivo';
+  return 'endereco';
+}
+const ENDERECO_SISTEMA = CANAL_SISTEMA + 'sistema.html';
+let ATU_SISTEMA = null;
+
+async function procurarAtualizacaoSistema(silencioso){
+  if(!silencioso){ limpaAlertas('cfg-ver-info'); alerta('cfg-ver-info','Procurando...', 0); }
   try{
     const r = await fetch(CANAL_SISTEMA+'versao-sistema.json?t='+Date.now(), {cache:'no-store'});
     if(!r.ok) throw new Error('HTTP '+r.status);
     const j = await r.json();
     const pub = String(j.systemVersion||'');
     if(!pub) throw new Error('publicação sem número de versão');
-    if(pub === SYSTEM_VERSION){
+    ATU_SISTEMA = (pub === SYSTEM_VERSION) ? null : {versao:pub, notas:j.notas||''};
+    pintarFaixaSistema();
+    if(silencioso) return;
+    if(!ATU_SISTEMA){
       alerta('cfg-ver-info','Você já está na versão mais recente (<b>'+esc(pub)+'</b>).');
-    } else if(noPrograma()){
-      alerta('cfg-ver-info','Existe a versão <b>'+esc(pub)+'</b>. Feche e abra o programa: ele baixa e pergunta se quer usar agora.',0);
     } else {
-      alerta('cfg-ver-info','Existe a versão <b>'+esc(pub)+'</b>. Recarregue a página (Ctrl+F5) para usá-la.',0);
+      alerta('cfg-ver-info','Existe a versão <b>'+esc(pub)+'</b> — veja a faixa verde no alto da tela.',0);
     }
   }catch(e){
-    alerta('cfg-ver-info','Não deu para verificar agora: '+esc(e.message||e)+'. O sistema continua funcionando normalmente.');
+    if(!silencioso)
+      alerta('cfg-ver-info','Não deu para verificar agora: '+esc(e.message||e)+'. O sistema continua funcionando normalmente.');
   }
+}
+
+/* A faixa aparece em qualquer tela — não adianta a novidade ficar escondida
+   dentro de Configurações. */
+function pintarFaixaSistema(){
+  const box = $('sis-atualizacao'); if(!box) return;
+  if(!ATU_SISTEMA){ box.innerHTML = ''; return; }
+  const v = esc(ATU_SISTEMA.versao);
+  const modo = modoDeAbertura();
+  if(modo === 'arquivo'){
+    box.innerHTML = `<div class="faixaatu av"><i class="ti ti-alert-triangle"></i>
+      <span>Existe a versão <b>${v}</b>, mas este arquivo foi <b>baixado</b> — assim ele nunca se atualiza sozinho.
+        Abra o sistema pelo endereço fixo e isso acaba.</span>
+      <button class="bt" onclick="abrirEnderecoFixo()">Abrir pelo endereço</button></div>`;
+  } else if(modo === 'endereco'){
+    box.innerHTML = `<div class="faixaatu"><i class="ti ti-download"></i>
+      <span>Versão <b>${v}</b> disponível.${ATU_SISTEMA.notas?' '+esc(ATU_SISTEMA.notas):''}</span>
+      <button class="bt" onclick="aplicarAtualizacaoSistema()">Atualizar agora</button></div>`;
+  } else {
+    box.innerHTML = `<div class="faixaatu"><i class="ti ti-download"></i>
+      <span>Versão <b>${v}</b> baixada. Feche e abra o programa para usá-la.</span></div>`;
+  }
+}
+/* Servido pelo endereço de publicação, recarregar já entrega o arquivo novo.
+   A consulta na URL é só para furar o cache do navegador; a origem continua a
+   mesma, então o banco local e os dados ficam onde estão. */
+function aplicarAtualizacaoSistema(){
+  location.href = location.pathname + '?v=' + Date.now();
+}
+function abrirEnderecoFixo(){
+  window.open(ENDERECO_SISTEMA, '_blank');
 }
 async function cfgSave(){
   CFG.orgao=$('c-orgao').value.trim(); CFG.secretaria=$('c-sec').value.trim();
@@ -1833,7 +1795,7 @@ function backupImport(input){
 }
 function zerarTudo(){
   confirmar('Apagar todos os dados','Todas as medições, furos e fotos serão <b>apagados definitivamente</b>. Esta ação não pode ser desfeita. Continuar?',async()=>{
-    for(const s of ['medicoes','furos']) await dbClear(s);
+    await dbClear('furos');
     alerta('cfg-bk','Todos os registros de medições e furos foram apagados.');
     cfgKpis(); dashRender();
   });
@@ -1904,123 +1866,25 @@ async function eqRenderServicos(){
 }
 
 /* ================================ MEDIÇÕES =============================== */
-async function medRender(){
-  await preencherSelects();
-  if($('med-dia') && $('med-dia').style.display!=='none') await medDiaRender();
-}
-
-async function medSave(){
-  limpaAlertas('med-err','med-ok');
-  const num = parseInt($('m-num').value);
-  const reg = $('m-reg').value.trim();
-  const lote = $('m-lote').value.trim();
-  const eq = $('m-eq').value;
-  if(!num || !reg || !lote || !eq){ alerta('med-err','Preencha Nº da Medição, Região, Lote e Equipe.'); return; }
-  const rec = {
-    numero:num, regiao:reg.toUpperCase(), lote:lote, equipe:eq,
-    dataIni:$('m-di').value, dataFim:$('m-df').value,
-    servicoPadrao:$('m-srv').value, status:$('m-st').value,
-    objeto:$('m-obj').value.trim() || CFG.objeto, obs:$('m-obs').value.trim()
-  };
-  try{
-    if(MED_EDIT){ rec.id = MED_EDIT; await dbPut('medicoes', rec); MED_EDIT = null; }
-    else await dbAdd('medicoes', rec);
-    alerta('med-ok',`Medição ${num}ª · ${esc(reg)} — Lote ${esc(lote)} salva com sucesso.`);
-    medReset(); await preencherSelects(); await medDiaRender();
-  }catch(err){ alerta('med-err','Erro ao salvar: '+esc(err.message||err)); }
-}
-let MED_EDIT = null;
-async function medReset(){
-  MED_EDIT = null;
-  ['m-num','m-reg','m-lote','m-di','m-df','m-obj','m-obs'].forEach(i=>$(i).value='');
-  $('m-st').value = 'Aberta';
-  $('m-obj').value = CFG.objeto;
-  const all = await dbGetAll('medicoes');
-  const max = all.reduce((m,x)=>Math.max(m, parseInt(x.numero)||0), 0);
-  $('m-num').value = max + 1;
-  if(all.length){ const ult = all[all.length-1]; $('m-reg').value = ult.regiao||''; $('m-lote').value = ult.lote||''; }
-  $('m-di').value = hoje();
-}
-async function medEditar(id){
-  const all = await dbGetAll('medicoes');
-  const m = all.find(x=>x.id===id); if(!m) return;
-  MED_EDIT = id;
-  $('m-num').value=m.numero; $('m-reg').value=m.regiao; $('m-lote').value=m.lote;
-  $('m-eq').value=m.equipe; $('m-di').value=m.dataIni||''; $('m-df').value=m.dataFim||'';
-  $('m-srv').value=m.servicoPadrao||''; $('m-st').value=m.status||'Aberta';
-  $('m-obj').value=m.objeto||''; $('m-obs').value=m.obs||'';
-  document.querySelectorAll('#pg-med .tab')[0].click();
-  alerta('med-ok','Editando a '+m.numero+'ª Medição — altere os campos e clique em Salvar.',0);
-}
-function medExcluir(id, rotulo, qtd){
-  confirmar('Excluir medição',
-    `A <b>${esc(rotulo)}</b> e seus <b>${qtd} furo(s)</b> (com as fotos) serão apagados. Continuar?`, async()=>{
-    const furos = await dbGetAll('furos');
-    for(const f of furos.filter(x=>x.medicaoId===id)) await dbDelete('furos', f.id);
-    await dbDelete('medicoes', id);
-    await preencherSelects(); dashRender();
-  });
-}
-function medRotulo(m){ return `${m.numero}ª Medição · ${m.regiao} — Lote ${m.lote} · ${m.equipe}`; }
-
-async function medRenderLista(){
-  if(!$('med-tb')) return;   /* a lista de medições cadastradas foi removida da tela */
-  try{
-    const [meds, furos] = await Promise.all([dbGetAll('medicoes'), dbGetAll('furos')]);
-    const tb = $('med-tb');
-    if(!meds.length){ tb.innerHTML = `<tr><td colspan="8"><div class="empty"><i class="ti ti-clipboard-off"></i>Nenhuma medição cadastrada ainda.</div></td></tr>`; return; }
-    tb.innerHTML = meds.sort((a,b)=>(b.numero||0)-(a.numero||0)).map(m=>{
-      const fs = furos.filter(f=>f.medicaoId===m.id);
-      const per = (m.dataIni||m.dataFim) ? `${fmtData(m.dataIni)} a ${fmtData(m.dataFim)}` : '—';
-      return `<tr>
-        <td><b>${m.numero}ª Medição</b></td>
-        <td>${esc(m.regiao)} · Lote ${esc(m.lote)}</td>
-        <td>${esc(m.equipe)}</td>
-        <td>${per}</td>
-        <td style="font-size:11.5px;color:var(--text2)">${esc(m.objeto||'—')}</td>
-        <td class="ac"><b>${fs.length}</b></td>
-        <td class="ac"><span class="st ${m.status==='Fechada'?'s-ok':'s-pd'}">${esc(m.status||'Aberta')}</span></td>
-        <td class="ac" style="white-space:nowrap">
-          <button class="btn ic sm" title="Relatório" onclick="rfIrPara(${m.id})"><i class="ti ti-camera"></i></button>
-          <button class="btn ic sm" title="Editar" onclick="medEditar(${m.id})"><i class="ti ti-pencil"></i></button>
-          <button class="btn ic sm" title="Excluir" onclick="medExcluir(${m.id},'${esc(m.numero+'ª Medição')}',${fs.length})"><i class="ti ti-trash"></i></button>
-        </td></tr>`;
-    }).join('');
-  }catch(err){ erroRender('med-tb', err, 'as medições'); }
-}
-
 /* ================================== FUROS =============================== */
 let FURO_FOTOS = [null,null];
 let FURO_EDIT = null;
 
-async function furoRefresh(){ await preencherSelects(); await furoOnMed(); await furoRenderLista(); }
+async function furoRefresh(){ await preencherSelects(); await furoProxNum(); await furoRuasSugeridas(); await furoRenderLista(); }
 
-async function furoOnMed(){
-  const mid = parseInt($('f-med').value);
-  if(!mid){ $('f-num').value=''; return; }
-  const meds = await dbGetAll('medicoes');
-  const m = meds.find(x=>x.id===mid);
-  if(m){
-    if(m.equipe) $('f-eq').value = m.equipe;
-    if(m.servicoPadrao) $('f-srv').value = m.servicoPadrao;
-  }
-  if(!FURO_EDIT) await furoProxNum();
-  await furoRuasSugeridas(mid);
-}
+/* Sem medição, a numeração é sequencial dentro do dia + equipe — que é o
+   recorte do relatório fotográfico. */
 async function furoProxNum(){
-  const mid = parseInt($('f-med').value); if(!mid) return;
+  const dt = $('f-data').value, eq = $('f-eq').value;
   const furos = await dbGetAll('furos');
-  const max = furos.filter(f=>f.medicaoId===mid).reduce((m,f)=>Math.max(m, parseInt(f.num)||0), 0);
+  const max = furos.filter(f=>f.data===dt && (f.equipe||'')===(eq||''))
+                   .reduce((m,f)=>Math.max(m, parseInt(f.num)||0), 0);
   $('f-num').value = max + 1;
 }
-async function furoRuasSugeridas(mid){
+async function furoRuasSugeridas(){
   const furos = await dbGetAll('furos');
   const ruas = [...new Set(furos.map(f=>f.rua).filter(Boolean))].sort();
   $('dl-ruas').innerHTML = ruas.map(r=>`<option value="${esc(r)}">`).join('');
-}
-function furoCalcArea(){
-  const l = parseFloat($('f-larg').value)||0, c = parseFloat($('f-comp').value)||0;
-  $('f-area').value = (l&&c) ? (l*c).toFixed(2) : '';
 }
 async function furoLoadFoto(idx, input){
   const f = input.files[0]; if(!f) return;
@@ -2052,28 +1916,24 @@ function furoDelFoto(idx){ FURO_FOTOS[idx] = null; furoPintaSlot(idx); }
 
 async function furoSave(seguirProximo){
   limpaAlertas('furo-err','furo-ok');
-  const mid = parseInt($('f-med').value);
   const num = parseInt($('f-num').value);
   const rua = $('f-rua').value.trim();
   const srv = $('f-srv').value;
   const dt  = $('f-data').value;
-  if(!mid){ alerta('furo-err','Selecione a medição.'); return false; }
   if(!num){ alerta('furo-err','Informe o número do furo.'); return false; }
   if(!rua){ alerta('furo-err','Informe o Bairro / Rua.'); return false; }
   if(!srv){ alerta('furo-err','Selecione o serviço executado.'); return false; }
   if(!dt){ alerta('furo-err','Informe a data do serviço.'); return false; }
 
   const furos = await dbGetAll('furos');
-  const dup = furos.find(f=>f.medicaoId===mid && parseInt(f.num)===num && f.id!==FURO_EDIT);
-  if(dup){ alerta('furo-err',`Já existe o furo nº <b>${num}</b> nesta medição. Altere o número ou edite o registro existente.`); return false; }
+  const dup = furos.find(f=>f.data===dt && (f.equipe||'')===($('f-eq').value||'')
+                            && parseInt(f.num)===num && f.id!==FURO_EDIT);
+  if(dup){ alerta('furo-err',`Já existe o furo nº <b>${num}</b> neste dia para esta equipe. Altere o número ou edite o registro existente.`); return false; }
 
-  const l = parseFloat($('f-larg').value)||0, c = parseFloat($('f-comp').value)||0;
   const anterior = FURO_EDIT ? furos.find(f=>f.id===FURO_EDIT) : null;
-  const medObj = (await dbGetAll('medicoes')).find(m=>m.id===mid);
   const rec = {
-    medicaoId:mid, medicaoUid:(medObj&&medObj.uid)||null, num:num, data:dt, rua:rua, servico:srv,
-    equipe:$('f-eq').value, largura:l||null, comprimento:c||null,
-    espessura:parseFloat($('f-esp').value)||null, area:(l&&c)?+(l*c).toFixed(2):null,
+    num:num, data:dt, rua:rua, servico:srv,
+    equipe:$('f-eq').value,
     obs:$('f-obs').value.trim(), fotos:[FURO_FOTOS[0], FURO_FOTOS[1]],
     origem: anterior ? (anterior.origem||'desktop') : 'desktop',
     dispositivo: anterior ? (anterior.dispositivo||'') : '',
@@ -2093,7 +1953,8 @@ async function furoSave(seguirProximo){
   try{
     if(FURO_EDIT){ rec.id = FURO_EDIT; rec.uid = anterior && anterior.uid; await dbPut('furos', rec); }
     else await dbAdd('furos', rec);
-    const salvo = FURO_EDIT ? rec : (await dbGetAll('furos')).find(x=>x.medicaoId===mid && x.num===num);
+    const salvo = FURO_EDIT ? rec : (await dbGetAll('furos'))
+      .find(x=>x.data===dt && (x.equipe||'')===(rec.equipe||'') && x.num===num);
     await histLog(FURO_EDIT?'Alterou':'Lançou','furo', (salvo&&salvo.uid)||rec.uid,
       `Furo nº ${num} · ${rua} · ${fmtData(dt)}`, '');
     if(anterior && anterior.status==='Validado' && rec.status==='Pendente')
@@ -2103,7 +1964,7 @@ async function furoSave(seguirProximo){
     const guardaRua = rua, guardaSrv = srv, guardaData = dt;
     furoReset();
     if(seguirProximo){ $('f-rua').value = guardaRua; $('f-srv').value = guardaSrv; $('f-data').value = guardaData; }
-    await furoProxNum(); await furoRuasSugeridas(mid); await furoRenderLista();
+    await furoProxNum(); await furoRuasSugeridas(); await furoRenderLista();
     return true;
   }catch(err){ alerta('furo-err','Erro ao salvar: '+esc(err.message||err)); return false; }
 }
@@ -2112,7 +1973,7 @@ function furoReset(){
   FURO_EDIT = null;
   FURO_FOTOS = [null,null];
   furoPintaSlot(0); furoPintaSlot(1);
-  ['f-rua','f-larg','f-comp','f-esp','f-area','f-obs'].forEach(i=>$(i).value='');
+  ['f-rua','f-obs'].forEach(i=>$(i).value='');
   if(!$('f-data').value) $('f-data').value = hoje();
   $('f-btn-cancel').style.display='none';
   $('f-btn-save').innerHTML = '<i class="ti ti-device-floppy"></i>Salvar Furo';
@@ -2124,10 +1985,9 @@ async function furoEditar(id){
   const furos = await dbGetAll('furos');
   const f = furos.find(x=>x.id===id); if(!f) return;
   FURO_EDIT = id;
-  $('f-med').value = f.medicaoId; $('f-num').value = f.num; $('f-data').value = f.data||'';
+  $('f-num').value = f.num; $('f-data').value = f.data||'';
   $('f-rua').value = f.rua||''; $('f-srv').value = f.servico||''; $('f-eq').value = f.equipe||'';
-  $('f-larg').value = f.largura||''; $('f-comp').value = f.comprimento||'';
-  $('f-esp').value = f.espessura||''; $('f-area').value = f.area||''; $('f-obs').value = f.obs||'';
+  $('f-obs').value = f.obs||'';
   FURO_FOTOS = [ (f.fotos||[])[0]||null, (f.fotos||[])[1]||null ];
   furoPintaSlot(0); furoPintaSlot(1);
   $('f-btn-cancel').style.display='';
@@ -2143,17 +2003,15 @@ function furoExcluir(id, num){
   });
 }
 function furoLimparFiltros(){
-  $('fl-busca').value=''; $('fl-med').value=''; $('fl-srv').value=''; $('fl-data').value='';
+  $('fl-busca').value=''; $('fl-srv').value=''; $('fl-data').value='';
   furoRenderLista();
 }
 async function furoRenderLista(){
   try{
-    const [furos, meds] = await Promise.all([dbGetAll('furos'), dbGetAll('medicoes')]);
-    const mapM = new Map(meds.map(m=>[m.id,m]));
+    const furos = await dbGetAll('furos');
     const q = $('fl-busca').value.trim().toLowerCase();
-    const fm = $('fl-med').value, fs = $('fl-srv').value, fd = $('fl-data').value;
+    const fs = $('fl-srv').value, fd = $('fl-data').value;
     let lista = furos.filter(f=>{
-      if(fm && f.medicaoId!==parseInt(fm)) return false;
       if(fs && f.servico!==fs) return false;
       if(fd && f.data!==fd) return false;
       if(q){
@@ -2161,7 +2019,7 @@ async function furoRenderLista(){
         if(!alvo.includes(q)) return false;
       }
       return true;
-    }).sort((a,b)=> (a.medicaoId-b.medicaoId) || (a.num-b.num));
+    }).sort((a,b)=> String(a.data||'').localeCompare(String(b.data||'')) || (a.num-b.num));
 
     const nFotos = lista.reduce((s,f)=>s+(f.fotos||[]).filter(Boolean).length,0);
     $('fl-info').innerHTML = `<b>${lista.length}</b> furo(s) · <b>${nFotos}</b> foto(s)` +
@@ -2172,7 +2030,6 @@ async function furoRenderLista(){
       return;
     }
     $('fl-grid').innerHTML = lista.map(f=>{
-      const m = mapM.get(f.medicaoId);
       const fts = (f.fotos||[]);
       return `<div class="furocard">
         <div class="fh"><b>Furo nº ${f.num}</b>
@@ -2185,8 +2042,7 @@ async function furoRenderLista(){
         <div class="fb">
           <div class="ln"><span>Rua</span><b>${esc(f.rua)}</b></div>
           <div class="ln"><span>Serviço</span>${esc(f.servico)}</div>
-          <div class="ln"><span>Medição</span>${m?esc(m.numero+'ª · '+m.regiao+' L'+m.lote):'—'}</div>
-          ${f.area?`<div class="ln"><span>Área</span>${f.area} m²</div>`:''}
+          <div class="ln"><span>Data</span>${fmtData(f.data)}</div>
           ${f.origem==='mobile'?`<div class="ln"><span>Origem</span><span class="dtag"><i class="ti ti-device-mobile"></i>${esc(furoOrigemTxt(f))}</span></div>`:''}
           ${furoStatus(f)==='Devolvido'&&f.motivoDevolucao?`<div class="al ae show" style="margin-top:6px;padding:6px 9px;font-size:11.5px"><i class="ti ti-arrow-back-up"></i><span>${esc(f.motivoDevolucao)}</span></div>`:''}
           <div style="display:flex;gap:6px;margin-top:8px">
@@ -2268,24 +2124,15 @@ async function eqRenderFuncionarios(){
 
 /* ======================== PREENCHIMENTO DE SELECTS ====================== */
 async function preencherSelects(){
-  const [meds, eqs, srvs] = await Promise.all([dbGetAll('medicoes'), eqGetAll(), srvGetAll()]);
-  const optMed = meds.sort((a,b)=>(b.numero||0)-(a.numero||0))
-    .map(m=>`<option value="${m.id}">${esc(medRotulo(m))}</option>`).join('');
+  const [eqs, srvs] = await Promise.all([eqGetAll(), srvGetAll()]);
   const optEq = eqs.map(e=>`<option value="${esc(e.nome)}">${esc(e.nome)}</option>`).join('');
   const optSrv = srvs.map(s=>`<option value="${esc(s.nome)}">${esc(s.nome)}</option>`).join('');
 
-  setSel('f-med', optMed);
-  setSel('d-med', '<option value="">Todas as medições</option>'+optMed);
-  setSel('fl-med','<option value="">Todas</option>'+optMed);
-  setSel('m-eq', optEq); setSel('f-eq', optEq); setSel('fu-eq', optEq);
+  setSel('f-eq', optEq); setSel('fu-eq', optEq);
   setSel('d-eq','<option value="">Todas as equipes</option>'+optEq);
-  setSel('m-srv','<option value="">— nenhum —</option>'+optSrv);
   setSel('f-srv', optSrv);
   setSel('fl-srv','<option value="">Todos</option>'+optSrv);
   setSel('rl-eq','<option value="">Todas equipes</option>'+optEq);
-  setSel('md-eq','<option value="">Todas equipes</option>'+optEq);
-  setSel('md-med','<option value="">Todas medições</option>'+optMed);
-  setSel('rl-med','<option value="">Todas medições</option>'+optMed);
   setSel('rl-srv','<option value="">Todos serviços</option>'+optSrv);
 }
 function setSel(id, html){
@@ -2315,7 +2162,7 @@ function furoOrigemTxt(f){
   if(f.origem==='mobile') return (f.dispositivo? f.dispositivo : 'Celular');
   return 'Computador';
 }
-function histLimpar(){ ['h-med','h-eq','h-st','h-data'].forEach(i=>$(i).value=''); histRender(); }
+function histLimpar(){ ['h-eq','h-st','h-data'].forEach(i=>$(i).value=''); histRender(); }
 
 async function histRender(){
   try{
@@ -2345,19 +2192,16 @@ function histBadge(pend){
 }
 
 /* ---------------------- Diário por dia / equipe ------------------------- */
-function histChaveDia(f){ return `${f.data||'sem-data'}|${f.equipe||'—'}|${f.medicaoId||0}`; }
+function histChaveDia(f){ return `${f.data||'sem-data'}|${f.equipe||'—'}`; }
 async function histGrupos(){
-  const [furos, meds] = await Promise.all([dbGetAll('furos'), dbGetAll('medicoes')]);
-  const mapM = new Map(meds.map(m=>[m.id,m]));
-  const fm = $('h-med').value, fe = $('h-eq').value, fst = $('h-st').value, fd = $('h-data').value;
+  const furos = await dbGetAll('furos');
+  const fe = $('h-eq').value, fst = $('h-st').value, fd = $('h-data').value;
   const g = new Map();
   furos.forEach(f=>{
-    if(fm && f.medicaoId!==parseInt(fm)) return;
     if(fe && f.equipe!==fe) return;
     if(fd && f.data!==fd) return;
     const k = histChaveDia(f);
-    if(!g.has(k)) g.set(k,{chave:k, data:f.data, equipe:f.equipe, medicaoId:f.medicaoId,
-                          med:mapM.get(f.medicaoId), furos:[]});
+    if(!g.has(k)) g.set(k,{chave:k, data:f.data, equipe:f.equipe, furos:[]});
     g.get(k).furos.push(f);
   });
   let lista = [...g.values()].map(x=>{
@@ -2378,7 +2222,7 @@ async function histRenderDias(){
     const lista = await histGrupos();
     const tb = $('h-tb-dia');
     if(!lista.length){
-      tb.innerHTML = `<tr><td colspan="11"><div class="empty"><i class="ti ti-calendar-off"></i>
+      tb.innerHTML = `<tr><td colspan="10"><div class="empty"><i class="ti ti-calendar-off"></i>
         Nenhum dia de serviço com esses filtros.</div></td></tr>`; return;
     }
     tb.innerHTML = lista.map(x=>{
@@ -2387,7 +2231,6 @@ async function histRenderDias(){
       return `<tr>
         <td><b>${fmtData(x.data)}</b></td>
         <td>${esc(x.equipe||'—')}</td>
-        <td>${x.med?esc(x.med.numero+'ª · '+x.med.regiao+' L'+x.med.lote):'—'}</td>
         <td style="font-size:11.5px;color:var(--text2)">${esc(ruas||'—')}</td>
         <td class="ac"><b>${x.furos.length}</b></td>
         <td class="ac">${x.fotos}</td>
@@ -2426,8 +2269,7 @@ async function histDevolverDia(chave){
 
 /* ------------------------- Validação por furo --------------------------- */
 async function histFurosFiltrados(){
-  const [furos, meds] = await Promise.all([dbGetAll('furos'), dbGetAll('medicoes')]);
-  const mapM = new Map(meds.map(m=>[m.id,m]));
+  const furos = await dbGetAll('furos');
   const q = $('hf-busca').value.trim().toLowerCase();
   const st = $('hf-st').value, org = $('hf-org').value, fd = $('hf-data').value;
   return furos.filter(f=>{
@@ -2436,7 +2278,7 @@ async function histFurosFiltrados(){
     if(fd && f.data!==fd) return false;
     if(q && !`${f.num} ${f.rua||''} ${f.servico||''} ${f.equipe||''} ${f.lancadoPor||''}`.toLowerCase().includes(q)) return false;
     return true;
-  }).map(f=>({...f, _med:mapM.get(f.medicaoId)}))
+  })
     .sort((a,b)=> String(b.data||'').localeCompare(String(a.data||'')) || (a.num-b.num));
 }
 async function histRenderFuros(){
@@ -2554,7 +2396,6 @@ async function histAuditoria(furoId){
       <div>${esc(f.validadoPor||'—')} · ${new Date(f.validadoEm).toLocaleString('pt-BR')}
       ${f.motivoDevolucao?`<div style="color:var(--red);margin-top:3px">Motivo: ${esc(f.motivoDevolucao)}</div>`:''}</div></div>`:''}
     ${gps}
-    ${(f.largura||f.comprimento)?`<div class="audrow"><div class="qd">Medidas</div><div>${f.largura||'?'} × ${f.comprimento||'?'} m${f.area?` · ${f.area} m²`:''}${f.espessura?` · ${f.espessura} cm`:''}</div></div>`:''}
     <div class="sh" style="margin-top:16px"><i class="ti ti-history"></i>Movimentações</div>
     ${meus.length ? meus.map(l=>`<div class="audrow">
         <div class="qd">${new Date(l.quando).toLocaleString('pt-BR')}</div>
@@ -2607,17 +2448,6 @@ function rfStab(el,tid){
   if(tid==='rf-lista') rfLista();
   if(tid==='rf-doc') rfPreview();
 }
-async function rfIrPara(medId){
-  RF_VOLTAR = {pg:'med'};
-  go('rf');
-  setTimeout(async ()=>{
-    document.querySelectorAll('#pg-rf .tab')[2].click();
-    await rfPreencherDatas();
-    const furos = (await dbGetAll('furos')).filter(f=>f.medicaoId===medId && f.data).sort((a,b)=>b.data.localeCompare(a.data));
-    $('r-fdata').value = furos.length ? furos[0].data : '';
-    await rfPreview();
-  }, 200);
-}
 async function rfPreencherDatas(){
   const furos = await dbGetAll('furos');
   const datas = [...new Set(furos.map(f=>f.data).filter(Boolean))].sort((a,b)=>b.localeCompare(a));
@@ -2669,7 +2499,7 @@ async function rfFotosCount(f, mapa){
 /* Mesma coleta do documento, mas por recorte (dia + equipe) — usada pela
    impressão combinada, que não passa pelos campos da tela. */
 async function rfColetaDe(dia, equipe, soVal){
-  const [meds, furos] = await Promise.all([dbGetAll('medicoes'), dbGetAll('furos')]);
+  const furos = await dbGetAll('furos');
   let lista = furos
     .filter(f=>!dia || f.data===dia)
     .filter(f=>!equipe || (f.equipe||'')===equipe)
@@ -2678,14 +2508,12 @@ async function rfColetaDe(dia, equipe, soVal){
   const mapa = await rfMapaFotos();
   lista = lista.map(f=>({...f, _srcs: furoSrcs(f, mapa)}));
   if(!lista.length) return {erro:'Nenhum furo nesse recorte.'};
-  const ids = [...new Set(lista.map(f=>f.medicaoId).filter(Boolean))];
-  const med = (ids.length === 1) ? (meds.find(m=>m.id===ids[0]) || {}) : {};
-  return {med, lista, mistura: ids.length > 1};
+  return {med:{}, lista, mistura:false};
 }
 
 /* Seleciona e ordena os furos conforme os parâmetros da tela. */
 async function rfColeta(){
-  const [meds, furos] = await Promise.all([dbGetAll('medicoes'), dbGetAll('furos')]);
+  const furos = await dbGetAll('furos');
   const fdata = $('r-fdata').value;
   const feq   = ($('r-feq') && $('r-feq').value) || '';
   const de  = parseInt($('r-de').value)  || 0;
@@ -2703,11 +2531,7 @@ async function rfColeta(){
   if(!lista.length) return {erro: soVal
     ? 'Nenhum furo <b>validado</b> com esses parâmetros. Valide os lançamentos em “Histórico e Validação” ou desmarque “somente validados”.'
     : 'Nenhum furo lançado com esses parâmetros. Lance os furos em “Furos / Serviços” antes de gerar o relatório.'};
-  /* O cabeçalho segue os furos: se todos forem da mesma medição, ela aparece;
-     se houver mistura ou avulsos, o documento sai sem essa linha. */
-  const ids = [...new Set(lista.map(f=>f.medicaoId).filter(Boolean))];
-  const med = (ids.length === 1) ? (meds.find(m=>m.id===ids[0]) || {}) : {};
-  return {med, lista, mistura: ids.length > 1};
+  return {med:{}, lista, mistura:false};
 }
 
 /* Agrupa os furos em blocos de 2 (padrão do documento: “1 e 2”, “3 e 4”...). */
@@ -2882,276 +2706,23 @@ async function rfAbrirImpressao(){
 }
 
 
-/* ====================================================================== */
-/*        MEDIÇÃO DO DIA — total por equipe, detalhado furo a furo         */
-/* ====================================================================== */
-
 /* A área de um furo vem das dimensões digitadas em campo. Como há foto do
    antes e do depois, a base do cálculo é escolhida na tela: por padrão o
    buraco (antes), que é o que a equipe marca e numera na rua. */
-function furoMedida(fotosDoFuro, base){
-  const a = fotosDoFuro.find(x=>x.tipo==='antes')  || null;
-  const d = fotosDoFuro.find(x=>x.tipo==='depois') || null;
-  const val = fo => ({
-    L:(fo&&fo.largura!=null)?+fo.largura:null,
-    C:(fo&&fo.comprimento!=null)?+fo.comprimento:null,
-    E:(fo&&fo.espessura!=null)?+fo.espessura:null,
-    area:(fo&&fo.area!=null)?+fo.area:0,
-    vol:(fo&&fo.volume!=null)?+fo.volume:0
-  });
-  const va = val(a), vd = val(d);
-  let esc;
-  if(base==='depois')      esc = vd.area ? vd : (va.area ? va : vd);
-  else if(base==='maior')  esc = (vd.area > va.area) ? vd : va;
-  else                     esc = va.area ? va : (vd.area ? vd : va);
-  return {...esc, areaAntes:va.area, areaDepois:vd.area, temAntes:!!a, temDepois:!!d};
-}
 function nBR(v, casas){
   if(v==null || v==='' || isNaN(v)) return '—';
   return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:casas, maximumFractionDigits:casas});
 }
-function medDiaLimpar(){
-  ['md-di','md-df','md-eq','md-med'].forEach(i=>$(i).value='');
-  $('md-base').value='antes'; $('md-soval').checked=false;
-  medDiaRender();
-}
-
 /* Monta a estrutura: dia → equipe → furos. É esta estrutura que vira a medição. */
-async function medDiaDados(){
-  const [furos, fotos, meds, mapR] = await Promise.all([dbGetAll('furos'), dbGetAll('fotos'), dbGetAll('medicoes'), relMapa()]);
-  const mapM = new Map(meds.map(m=>[m.id,m]));
-  const mapU = new Map(meds.map(m=>[m.uid,m]));
-  const base = $('md-base').value || 'antes';
-  const di = $('md-di').value, df = $('md-df').value;
-  const fe = $('md-eq').value, fm = $('md-med').value;
-  const soVal = $('md-soval').checked;
-
-  const porFuro = new Map();
-  fotos.forEach(x=>{ if(!porFuro.has(x.furoUid)) porFuro.set(x.furoUid, []); porFuro.get(x.furoUid).push(x); });
-
-  const filtrados = furos.filter(f=>{
-    if(di && (f.data||'') < di) return false;
-    if(df && (f.data||'') > df) return false;
-    if(fe && f.equipe !== fe) return false;
-    if(fm && String(f.medicaoId) !== fm) return false;
-    if(soVal && furoStatus(f) !== 'Validado') return false;
-    return true;
-  });
-
-  const dias = new Map();
-  filtrados.forEach(f=>{
-    const dia = f.data || 'sem-data';
-    if(!dias.has(dia)) dias.set(dia, new Map());
-    const eqs = dias.get(dia);
-    const eq = f.equipe || 'Sem equipe';
-    if(!eqs.has(eq)) eqs.set(eq, []);
-    const fts = porFuro.get(f.uid) || [];
-    const med = mapM.get(f.medicaoId) || mapU.get(f.medicaoUid) || null;
-    const rel = mapR.get(f.relatorioUid) || null;
-    eqs.get(eq).push({...f, _m: furoMedida(fts, base), _nf: fts.filter(x=>x.url||x.dataHora).length, _med: med,
-                      _rel: rel, _corr: !!(rel && rel.corrigido && !rel.conferido) || !!f.corrigidoEmCampo});
-  });
-
-  /* ordena: dia mais recente primeiro, equipe em ordem, furo por número */
-  const lista = [...dias.entries()]
-    .sort((a,b)=>String(b[0]).localeCompare(String(a[0])))
-    .map(([dia, eqs])=>{
-      const equipes = [...eqs.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([eq, fs])=>{
-        fs.sort((a,b)=>(parseInt(a.num)||0)-(parseInt(b.num)||0));
-        const area = fs.reduce((s,x)=>s+(x._m.area||0),0);
-        const vol  = fs.reduce((s,x)=>s+(x._m.vol||0),0);
-        const semMedida = fs.filter(x=>!x._m.area).length;
-        const porServico = {};
-        fs.forEach(x=>{
-          const k = x.servico || '—';
-          if(!porServico[k]) porServico[k] = {furos:0, area:0, vol:0};
-          porServico[k].furos++; porServico[k].area += (x._m.area||0); porServico[k].vol += (x._m.vol||0);
-        });
-        return {equipe:eq, furos:fs, area, vol, semMedida, porServico,
-                corrigidos: fs.filter(x=>x._corr).length,
-                pendentes: fs.filter(x=>furoStatus(x)!=='Validado').length};
-      });
-      return {dia, equipes,
-              furos: equipes.reduce((s,e)=>s+e.furos.length,0),
-              area:  equipes.reduce((s,e)=>s+e.area,0),
-              vol:   equipes.reduce((s,e)=>s+e.vol,0)};
-    });
-  return {lista, base};
-}
-
 /* detalhe furo a furo de uma linha da lista — abre embaixo da própria linha */
 let MD_LINHAS = [];
-function medDiaDet(i){
-  const tr = $('mdd-'+i); if(!tr) return;
-  tr.style.display = (tr.style.display==='none') ? '' : 'none';
-}
-function medDiaDetalhe(e){
-  return `<div style="overflow-x:auto"><table class="dt" style="font-size:12px;margin:0">
-    <thead><tr>
-      <th class="ac">Furo</th><th>Bairro / Rua</th><th>Serviço</th>
-      <th class="ar">Larg. (m)</th><th class="ar">Compr. (m)</th><th class="ar">Esp. (cm)</th>
-      <th class="ar">Área (m²)</th><th class="ar">Volume (m³)</th>
-      <th class="ac">Fotos</th><th class="ac">Situação</th>
-    </tr></thead><tbody>
-    ${e.furos.map(x=>{
-      const st = furoStatus(x);
-      return `<tr${!x._m.area?' style="background:var(--red-bg)"':''}>
-        <td class="ac"><b>${x.num}</b></td>
-        <td>${esc(x.rua||'—')}</td>
-        <td>${esc(x.servico||'—')}</td>
-        <td class="ar">${nBR(x._m.L,2)}</td>
-        <td class="ar">${nBR(x._m.C,2)}</td>
-        <td class="ar">${nBR(x._m.E,1)}</td>
-        <td class="ar"><b>${x._m.area?nBR(x._m.area,2):'—'}</b></td>
-        <td class="ar">${x._m.vol?nBR(x._m.vol,3):'—'}</td>
-        <td class="ac">${x._nf||'—'}</td>
-        <td class="ac"><span class="st ${ST_CLS[st]}">${st}</span></td>
-      </tr>`;
-    }).join('')}
-    <tr style="background:var(--bg3)">
-      <td colspan="6" class="ar"><b>Subtotal ${esc(e.equipe)}</b></td>
-      <td class="ar"><b>${nBR(e.area,2)}</b></td>
-      <td class="ar"><b>${nBR(e.vol,3)}</b></td>
-      <td colspan="2"></td></tr>
-    </tbody></table></div>
-    <div style="padding:9px 16px;font-size:12px;color:var(--text2);display:flex;gap:14px;flex-wrap:wrap">
-      ${Object.entries(e.porServico).map(([s,v])=>
-        `<span><b>${esc(s)}</b>: ${v.furos} furo(s) · ${nBR(v.area,2)} m²</span>`).join('')}
-    </div>`;
-}
-
-async function medDiaRender(){
-  try{
-    await preencherSelects();
-    await relMigrar();
-    await pintarCorrigidos();
-    const {lista, base} = await medDiaDados();
-    const totFuros = lista.reduce((s,d)=>s+d.furos,0);
-    const totArea  = lista.reduce((s,d)=>s+d.area,0);
-    const totVol   = lista.reduce((s,d)=>s+d.vol,0);
-    const semMed   = lista.reduce((s,d)=>s+d.equipes.reduce((t,e)=>t+e.semMedida,0),0);
-
-    /* consolidado por equipe no período — é o número que fecha a medição */
-    const porEquipe = {};
-    lista.forEach(d=>d.equipes.forEach(e=>{
-      if(!porEquipe[e.equipe]) porEquipe[e.equipe] = {furos:0, area:0, vol:0, dias:0};
-      porEquipe[e.equipe].furos += e.furos.length;
-      porEquipe[e.equipe].area  += e.area;
-      porEquipe[e.equipe].vol   += e.vol;
-      porEquipe[e.equipe].dias++;
-    }));
-
-    $('md-kpis').innerHTML =
-      kpi('Dias de serviço', lista.length, '', 'bl') +
-      kpi('Furos medidos', totFuros, semMed?`${semMed} sem dimensão`:'todos com dimensão', semMed?'am':'gn') +
-      kpi('Área total', nBR(totArea,2)+' m²', 'base: '+(base==='depois'?'foto do depois':base==='maior'?'a maior':'foto do antes'), 'gn') +
-      kpi('Volume total', nBR(totVol,3)+' m³', '', 'pu') +
-      kpi('Equipes', Object.keys(porEquipe).length, '', 'bl');
-
-    if(!lista.length){
-      $('md-corpo').innerHTML = `<div class="card"><div class="empty"><i class="ti ti-calculator-off"></i>
-        Nenhum furo lançado com esses filtros.</div></div>`;
-      return;
-    }
-
-    const consolidado = `
-      <div class="card">
-        <div class="sh"><i class="ti ti-sum"></i>Consolidado do período — por equipe</div>
-        <table class="dt"><thead><tr>
-          <th>Equipe</th><th class="ac">Dias</th><th class="ac">Furos</th>
-          <th class="ar">Área (m²)</th><th class="ar">Volume (m³)</th><th class="ar">Média por furo (m²)</th>
-        </tr></thead><tbody>
-        ${Object.entries(porEquipe).sort((a,b)=>b[1].area-a[1].area).map(([eq,v])=>`
-          <tr><td><b>${esc(eq)}</b></td><td class="ac">${v.dias}</td><td class="ac">${v.furos}</td>
-          <td class="ar"><b>${nBR(v.area,2)}</b></td><td class="ar">${nBR(v.vol,3)}</td>
-          <td class="ar">${v.furos?nBR(v.area/v.furos,2):'—'}</td></tr>`).join('')}
-        <tr style="background:var(--bg3)"><td><b>TOTAL</b></td>
-          <td class="ac"><b>${lista.length}</b></td><td class="ac"><b>${totFuros}</b></td>
-          <td class="ar"><b>${nBR(totArea,2)}</b></td><td class="ar"><b>${nBR(totVol,3)}</b></td>
-          <td class="ar">${totFuros?nBR(totArea/totFuros,2):'—'}</td></tr>
-        </tbody></table>
-      </div>`;
-
-    /* ---- lista chapada: uma linha por dia × equipe, no mesmo formato do
-       Relatório Fotográfico (cód. / data / equipe / ... / ações) ---- */
-    const cont = {}; const linhas = [];
-    lista.forEach(d=>d.equipes.forEach(e=>{
-      const med = (e.furos.find(x=>x._med)||{})._med || null;
-      const pref = (med && med.numero) ? String(med.numero) : 'AV';
-      cont[pref] = (cont[pref]||0)+1;
-      const srvs = Object.keys(e.porServico);
-      linhas.push({...e, dia:d.dia, med, pref,
-        cod: `${pref}-${String(cont[pref]).padStart(4,'0')}`,
-        servico: srvs.length ? srvs.sort((a,b)=>e.porServico[b].furos-e.porServico[a].furos)[0] : '—',
-        maisSrv: Math.max(0, srvs.length-1),
-        fotos: e.furos.reduce((s,x)=>s+(x._nf||0),0),
-        devolvidos: e.furos.filter(x=>furoStatus(x)==='Devolvido').length});
-    }));
-    MD_LINHAS = linhas;
-
-    const linhaHTML = (e,i)=>{
-      const st = e.devolvidos ? 'Devolvido' : (e.pendentes ? 'Pendente' : 'Validado');
-      const eqA = jsArg(e.equipe);
-      return `<tr>
-        <td><b>${esc(e.cod)}</b><div class="dtag" style="margin-top:2px"><i class="ti ti-clipboard-list"></i>${
-          e.med ? 'Medição '+esc(String(e.med.numero)) : 'avulso'}</div>
-          ${e.corrigidos?`<div class="dtag" style="margin-top:2px;background:#FDF0D5;color:#8A5A00"><i class="ti ti-pencil"></i>corrigido pelo fiscal</div>`:''}</td>
-        <td>${fmtData(e.dia)}</td>
-        <td><b>${esc(e.equipe)}</b></td>
-        <td title="${esc(e.servico)}">${esc(String(e.servico).slice(0,24))}${e.maisSrv?` <span class="dtag">+${e.maisSrv}</span>`:''}</td>
-        <td class="ac"><b>${e.furos.length}</b>${e.semMedida?`<div class="st s-rd" style="margin-top:2px">${e.semMedida} sem medida</div>`:''}</td>
-        <td class="ar"><b style="color:var(--green)">${nBR(e.area,2)}</b></td>
-        <td class="ar">${nBR(e.vol,3)}</td>
-        <td class="ac">${e.fotos?`<b style="color:var(--green)">${e.fotos}</b>`:'<span style="color:var(--red)">—</span>'}</td>
-        <td class="ac"><span class="st ${ST_CLS[st]}">${st}</span></td>
-        <td class="ac" style="white-space:nowrap">
-          <button class="btn ic sm" title="Ver os furos desta linha" onclick="medDiaDet(${i})"><i class="ti ti-list-details"></i></button>
-          <button class="btn ic sm" title="Editar os furos" onclick="abrirEditor('${e.dia}','${eqA}')"><i class="ti ti-pencil"></i></button>
-          <button class="btn ic sm" title="Imprimir a medição + o relatório fotográfico" onclick="imprimirCompleto('${e.dia}','${eqA}')"><i class="ti ti-printer"></i></button>
-        </td></tr>
-        <tr id="mdd-${i}" style="display:none"><td colspan="10" style="padding:0;background:var(--bg2)">
-          ${medDiaDetalhe(e)}</td></tr>`;
-    };
-
-    const tabela = `
-      <div class="card tw">
-        <table class="dt"><thead><tr>
-          <th>Cód.</th><th>Data</th><th>Equipe</th><th>Serviço</th><th class="ac">Furos</th>
-          <th class="ar">Área (m²)</th><th class="ar">Volume (m³)</th>
-          <th class="ac">Fotos</th><th class="ac">Situação</th><th class="ac">Ações</th>
-        </tr></thead><tbody>${linhas.map(linhaHTML).join('')}
-        <tr style="background:var(--bg3)">
-          <td colspan="4" class="ar"><b>TOTAL — ${linhas.length} medição(ões) de dia/equipe</b></td>
-          <td class="ac"><b>${totFuros}</b></td>
-          <td class="ar"><b>${nBR(totArea,2)}</b></td>
-          <td class="ar"><b>${nBR(totVol,3)}</b></td>
-          <td colspan="3"></td></tr>
-        </tbody></table>
-      </div>`;
-
-    $('md-corpo').innerHTML = tabela + consolidado;
-  }catch(err){ erroRender('md-corpo', err, 'a medição do dia'); }
-}
-
-/* ------------------------------ impressão ------------------------------ */
-/* Reproduz no papel o mesmo quadro que aparece na tela: faixa do dia com os
-   totais, faixa da equipe e a tabela furo a furo com o subtotal. */
-async function medDiaImprimir(soDia, soEquipe){
-  limpaAlertas('md-err','md-ok');
-  const paginas = await medDiaPaginas(soDia, soEquipe);
-  if(!paginas){ return; }
-  rfMostrarImpressao(paginas);
-}
-/* Documento completo: a MEDIÇÃO do recorte e, na sequência, o RELATÓRIO
-   FOTOGRÁFICO daquele mesmo dia/equipe — sai tudo numa impressão só. */
+/* Imprime o relatório fotográfico de um dia/equipe. */
 async function imprimirCompleto(dia, equipe){
-  limpaAlertas('md-err','md-ok','rf-err','rf-ok','rf-err2');
+  limpaAlertas('rf-err','rf-ok','rf-err2');
   try{
-    const med = await medDiaPaginas(dia, equipe);
     const r = await rfColetaDe(dia, equipe, false);
-    const foto = r.erro ? '' : rfMontarHTML(r.med, r.lista, rfOpts());
-    if(!med && !foto){ alerta('rf-err','Nada para imprimir nesse recorte.'); return; }
-    rfMostrarImpressao((med||'') + (foto||''));
+    if(r.erro){ alerta('rf-err', r.erro); return; }
+    rfMostrarImpressao(rfMontarHTML(r.med, r.lista, rfOpts()));
   }catch(err){ alerta('rf-err','Erro ao montar o documento: '+esc(err.message||err)); }
 }
 function rfMostrarImpressao(paginas){
@@ -3161,220 +2732,6 @@ function rfMostrarImpressao(paginas){
   $('rf-print-modal').style.display = 'block';
   window.scrollTo(0,0);
 }
-async function medDiaPaginas(soDia, soEquipe){
-  try{
-    const {lista, base} = await medDiaDados();
-    let dados = lista;
-    if(soDia)    dados = dados.filter(d=>d.dia===soDia);
-    if(soEquipe) dados = dados.map(d=>({...d, equipes:d.equipes.filter(e=>e.equipe===soEquipe)}))
-                             .filter(d=>d.equipes.length);
-    if(!dados.length){ alerta('md-err','Nenhum furo para medir nesse recorte.'); return null; }
-    dados = dados.map(d=>({...d,
-      furos: d.equipes.reduce((s,e)=>s+e.furos.length,0),
-      area:  d.equipes.reduce((s,e)=>s+e.area,0),
-      vol:   d.equipes.reduce((s,e)=>s+e.vol,0)}));
-
-    const baseTxt = base==='depois' ? 'foto do depois' : base==='maior' ? 'a maior das duas' : 'foto do antes';
-    const dtHoje = new Date().toLocaleDateString('pt-BR');
-    const meds = await dbGetAll('medicoes');
-    const idsMed = [...new Set(dados.flatMap(d=>d.equipes.flatMap(e=>e.furos.map(f=>f.medicaoId))).filter(Boolean))];
-    const med = idsMed.length===1 ? (meds.find(m=>m.id===idsMed[0])||{}) : {};
-
-    const porEquipe = {};
-    dados.forEach(d=>d.equipes.forEach(e=>{
-      if(!porEquipe[e.equipe]) porEquipe[e.equipe] = {furos:0, area:0, vol:0, dias:0};
-      porEquipe[e.equipe].furos += e.furos.length;
-      porEquipe[e.equipe].area  += e.area;
-      porEquipe[e.equipe].vol   += e.vol;
-      porEquipe[e.equipe].dias++;
-    }));
-    const totFuros = dados.reduce((s,d)=>s+d.furos,0);
-    const totArea  = dados.reduce((s,d)=>s+d.area,0);
-    const totVol   = dados.reduce((s,d)=>s+d.vol,0);
-
-    const cab = (titulo)=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #185FA5;padding-bottom:7px;margin-bottom:8px">
-        <img src="${CFG.logoOrgao}" style="height:13mm;object-fit:contain">
-        <div style="text-align:center;flex:1;padding:0 5mm">
-          <div style="font-size:9pt;font-weight:700;color:#1a3a6b">${esc(CFG.orgao)}</div>
-          <div style="font-size:7.5pt">${esc(CFG.secretaria)}</div>
-          <div style="font-size:7.5pt">${esc(med.objeto||CFG.objeto)}</div>
-          ${med.numero?`<div style="font-size:8pt;font-weight:700">${med.numero}ª MEDIÇÃO · REGIÃO ${esc(med.regiao||'')} — LOTE ${esc(med.lote||'')}</div>`:''}
-          <div style="margin-top:4px;display:inline-block;background:#185FA5;color:#fff;font-size:10.5pt;font-weight:700;padding:2px 16px;border-radius:4px">${titulo}</div>
-        </div>
-        <img src="${CFG.logoEmpresa}" style="height:13mm;object-fit:contain">
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:7.5pt;margin-bottom:5px">
-        <span><b>EMPRESA:</b> ${esc(CFG.empresa)}</span>
-        <span>Área apurada pela ${esc(baseTxt)} · Emitido em ${dtHoje}</span>
-      </div>`;
-
-    const th = 'padding:2.4px 4px;background:#185FA5;color:#fff;font-size:6.8pt;font-weight:700';
-    const td = 'padding:2.4px 4px;border:.4px solid #9AA0A8;font-size:7pt';
-
-    /* faixa escura do dia, igual à da tela */
-    const faixaDia = d=>`
-      <div style="background:#1C1F26;color:#fff;padding:4px 8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:0">
-        <b style="font-size:10pt">Medição do dia ${fmtData(d.dia)}</b>
-        <span style="font-size:8pt">${d.furos} furo(s) · <b>${nBR(d.area,2)} m²</b> · ${nBR(d.vol,3)} m³</span>
-      </div>`;
-    const faixaEq = e=>`
-      <div style="background:#EEF0F4;padding:3.5px 8px;display:flex;justify-content:space-between;align-items:center;border:.4px solid #9AA0A8;border-top:0">
-        <span style="font-size:9pt"><b>${esc(e.equipe)}</b>
-          ${e.pendentes ? `<span style="font-size:7pt;color:#7A4A0A">· ${e.pendentes} a validar</span>`
-                        : `<span style="font-size:7pt;color:#2D7A3A">· tudo validado</span>`}</span>
-        <span style="font-size:8.5pt">${e.furos.length} furos · <b>${nBR(e.area,2)} m²</b> · ${nBR(e.vol,3)} m³</span>
-      </div>`;
-    const tabelaEq = e=>`
-      <table style="width:100%;border-collapse:collapse;margin-bottom:5mm">
-        <thead><tr>
-          <th style="${th}">FURO</th><th style="${th};text-align:left">BAIRRO / RUA</th>
-          <th style="${th};text-align:left">SERVIÇO</th>
-          <th style="${th};text-align:right">LARG. (M)</th><th style="${th};text-align:right">COMPR. (M)</th>
-          <th style="${th};text-align:right">ESP. (CM)</th><th style="${th};text-align:right">ÁREA (M²)</th>
-          <th style="${th};text-align:right">VOLUME (M³)</th><th style="${th}">FOTOS</th><th style="${th}">SITUAÇÃO</th>
-        </tr></thead><tbody>
-        ${e.furos.map(x=>`<tr${!x._m.area?' style="background:#FCEBEB"':''}>
-          <td style="${td};text-align:center"><b>${x.num}</b></td>
-          <td style="${td}">${esc(x.rua||'—')}</td>
-          <td style="${td}">${esc(x.servico||'—')}</td>
-          <td style="${td};text-align:right">${nBR(x._m.L,2)}</td>
-          <td style="${td};text-align:right">${nBR(x._m.C,2)}</td>
-          <td style="${td};text-align:right">${nBR(x._m.E,1)}</td>
-          <td style="${td};text-align:right"><b>${x._m.area?nBR(x._m.area,2):'—'}</b></td>
-          <td style="${td};text-align:right">${x._m.vol?nBR(x._m.vol,3):'—'}</td>
-          <td style="${td};text-align:center">${x._nf||'—'}</td>
-          <td style="${td};text-align:center">${furoStatus(x)}</td></tr>`).join('')}
-        <tr style="background:#EEF0F4">
-          <td colspan="6" style="${td};text-align:right"><b>Subtotal ${esc(e.equipe)}</b></td>
-          <td style="${td};text-align:right"><b>${nBR(e.area,2)}</b></td>
-          <td style="${td};text-align:right"><b>${nBR(e.vol,3)}</b></td>
-          <td colspan="2" style="${td}"></td></tr>
-        </tbody></table>
-      <div style="font-size:7pt;margin:-3mm 0 5mm">
-        ${Object.entries(e.porServico).map(([s,v])=>`<b>${esc(s)}</b>: ${v.furos} furo(s) · ${nBR(v.area,2)} m² &nbsp;&nbsp;`).join('')}
-      </div>`;
-
-    let paginas = '';
-    /* Resumo só faz sentido quando o documento cobre mais de um recorte. */
-    const varios = dados.length > 1 || Object.keys(porEquipe).length > 1;
-    if(varios){
-      paginas += `<div class="rfpage" style="padding:9mm 9mm">
-        ${cab('RESUMO DA MEDIÇÃO')}
-        <table style="width:100%;border-collapse:collapse;margin-bottom:5mm">
-          <thead><tr>
-            <th style="${th};text-align:left">EQUIPE</th><th style="${th}">DIAS</th><th style="${th}">FUROS</th>
-            <th style="${th};text-align:right">ÁREA (M²)</th><th style="${th};text-align:right">VOLUME (M³)</th>
-            <th style="${th};text-align:right">MÉDIA/FURO (M²)</th>
-          </tr></thead><tbody>
-          ${Object.entries(porEquipe).sort((a,b)=>b[1].area-a[1].area).map(([eq,v])=>`
-            <tr><td style="${td}"><b>${esc(eq)}</b></td>
-              <td style="${td};text-align:center">${v.dias}</td>
-              <td style="${td};text-align:center">${v.furos}</td>
-              <td style="${td};text-align:right"><b>${nBR(v.area,2)}</b></td>
-              <td style="${td};text-align:right">${nBR(v.vol,3)}</td>
-              <td style="${td};text-align:right">${v.furos?nBR(v.area/v.furos,2):'—'}</td></tr>`).join('')}
-          <tr style="background:#EEF0F4"><td style="${td}"><b>TOTAL GERAL</b></td>
-            <td style="${td};text-align:center"><b>${dados.length}</b></td>
-            <td style="${td};text-align:center"><b>${totFuros}</b></td>
-            <td style="${td};text-align:right"><b>${nBR(totArea,2)}</b></td>
-            <td style="${td};text-align:right"><b>${nBR(totVol,3)}</b></td>
-            <td style="${td};text-align:right">${totFuros?nBR(totArea/totFuros,2):'—'}</td></tr>
-          </tbody></table>
-        <div style="font-size:7.5pt;color:#555">Período: ${fmtData(dados[dados.length-1].dia)} a ${fmtData(dados[0].dia)}</div>
-        ${docAssinaturaMed()}${docRodapeMed()}</div>`;
-    }
-    dados.forEach(d=>{
-      paginas += `<div class="rfpage" style="padding:9mm 9mm">
-        ${cab('MEDIÇÃO DO DIA')}
-        ${faixaDia(d)}
-        ${d.equipes.map(e=>faixaEq(e)+tabelaEq(e)).join('')}
-        ${docAssinaturaMed()}${docRodapeMed()}</div>`;
-    });
-
-    return paginas;
-  }catch(err){ alerta('md-err','Erro ao montar a medição: '+esc(err.message||err)); return null; }
-}
-function docAssinaturaMed(){
-  return `<div style="margin-top:14mm;display:flex;justify-content:space-around;gap:10mm">
-    <div style="text-align:center;min-width:60mm;border-top:.4mm solid #333;padding-top:2mm">
-      <div style="font-size:9pt;font-weight:700">${esc(usuarioNome())}</div>
-      <div style="font-size:8pt;color:#333">${esc(CFG.empresa)}</div></div>
-    <div style="text-align:center;min-width:60mm;border-top:.4mm solid #333;padding-top:2mm">
-      <div style="font-size:9pt;font-weight:700">FISCAL DO CONTRATO</div>
-      <div style="font-size:8pt;color:#333">${esc(CFG.secretaria)}</div></div>
-  </div>`;
-}
-function docRodapeMed(){
-  return CFG.rodape
-    ? `<div style="position:absolute;bottom:6mm;left:10mm;right:10mm;border-top:.3mm solid #aaa;padding-top:1mm;text-align:center;font-size:7pt;color:#666">${esc(CFG.rodape)}</div>`
-    : '';
-}
-
-/* ------------------------------- planilha ------------------------------ */
-async function medDiaPlanilha(){
-  limpaAlertas('md-err','md-ok');
-  try{
-    const {lista, base} = await medDiaDados();
-    if(!lista.length){ alerta('md-err','Nenhum furo para exportar com esses filtros.'); return; }
-    const detalhe = [];
-    lista.forEach(d=>d.equipes.forEach(e=>e.furos.forEach(x=>{
-      detalhe.push({
-        'Data': fmtData(d.dia), 'Equipe': e.equipe,
-        'Medição': x._med && x._med.numero ? x._med.numero+'ª' : 'Avulso',
-        'Furo': x.num, 'Bairro/Rua': x.rua||'', 'Serviço': x.servico||'',
-        'Largura (m)': x._m.L!=null?x._m.L:'', 'Comprimento (m)': x._m.C!=null?x._m.C:'',
-        'Espessura (cm)': x._m.E!=null?x._m.E:'',
-        'Área (m²)': x._m.area||'', 'Volume (m³)': x._m.vol||'',
-        'Área antes (m²)': x._m.areaAntes||'', 'Área depois (m²)': x._m.areaDepois||'',
-        'Fotos': x._nf, 'Situação': furoStatus(x)
-      });
-    })));
-    const porDiaEquipe = [];
-    lista.forEach(d=>d.equipes.forEach(e=>porDiaEquipe.push({
-      'Data': fmtData(d.dia), 'Equipe': e.equipe, 'Furos': e.furos.length,
-      'Área (m²)': +e.area.toFixed(2), 'Volume (m³)': +e.vol.toFixed(3),
-      'Média por furo (m²)': e.furos.length?+(e.area/e.furos.length).toFixed(2):'',
-      'A validar': e.pendentes, 'Sem dimensão': e.semMedida
-    })));
-    const porEquipe = {};
-    lista.forEach(d=>d.equipes.forEach(e=>{
-      if(!porEquipe[e.equipe]) porEquipe[e.equipe] = {furos:0, area:0, vol:0, dias:0};
-      porEquipe[e.equipe].furos += e.furos.length;
-      porEquipe[e.equipe].area  += e.area;
-      porEquipe[e.equipe].vol   += e.vol;
-      porEquipe[e.equipe].dias++;
-    }));
-    const consolidado = Object.entries(porEquipe).map(([eq,v])=>({
-      'Equipe':eq, 'Dias':v.dias, 'Furos':v.furos,
-      'Área (m²)':+v.area.toFixed(2), 'Volume (m³)':+v.vol.toFixed(3),
-      'Média por furo (m²)': v.furos?+(v.area/v.furos).toFixed(2):''
-    }));
-    consolidado.push({'Equipe':'TOTAL GERAL','Dias':lista.length,
-      'Furos':consolidado.reduce((s,r)=>s+r['Furos'],0),
-      'Área (m²)':+consolidado.reduce((s,r)=>s+r['Área (m²)'],0).toFixed(2),
-      'Volume (m³)':+consolidado.reduce((s,r)=>s+r['Volume (m³)'],0).toFixed(3),
-      'Média por furo (m²)':''});
-
-    const nome = 'Medicao_RRBarros_'+hoje().replace(/-/g,'');
-    try{
-      const XLSX = await carregarXLSX();
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(consolidado),  'Consolidado por equipe');
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(porDiaEquipe), 'Por dia e equipe');
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detalhe),      'Detalhe dos furos');
-      const buf = XLSX.write(wb,{bookType:'xlsx', type:'array'});
-      baixarArquivo(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), nome+'.xlsx');
-      alerta('md-ok', `Planilha da medição gerada · <b>${detalhe.length}</b> furo(s) · área total <b>${nBR(lista.reduce((s,d)=>s+d.area,0),2)} m²</b>.`);
-    }catch(e){
-      const cab2 = Object.keys(detalhe[0]);
-      const csv = '﻿' + [cab2.join(';')].concat(detalhe.map(l=>cab2.map(k=>csvEscapa(l[k])).join(';'))).join('\n');
-      baixarArquivo(new Blob([csv],{type:'text/csv;charset=utf-8'}), nome+'.csv');
-      alerta('md-ok','Sem internet para o gerador de .xlsx — a medição saiu em CSV.');
-    }
-  }catch(err){ alerta('md-err','Erro ao gerar a planilha: '+esc(err.message||err)); }
-}
-
 /* --------------------- PLANILHA DE DADOS (.xlsx) ------------------------ */
 async function carregarXLSX(){
   if(window.XLSX) return window.XLSX;
@@ -3407,14 +2764,12 @@ async function rfPlanilha(){
     const fotos = await dbGetAll('fotos');
     const linhas = [];
     lista.forEach(f=>{
-      const med = f._med || {};
       ['antes','depois'].forEach(tipo=>{
         const fo = fotos.find(x=>x.furoUid===f.uid && x.tipo===tipo);
         const e = (fo && fo.endereco) || {};
         linhas.push({
           'Código': f._cod,
           'Medição': med.numero ? med.numero+'ª' : 'Avulso',
-          'Região': med.regiao||'', 'Lote': med.lote||'',
           'Data': fmtData(f.data), 'Equipe': f.equipe||'',
           'Furo': f.num, 'Foto': tipo==='antes'?'Antes':'Depois',
           'Descrição': (fo&&fo.descricao)||'',
@@ -3494,7 +2849,7 @@ async function relMigrar(){
     const seq = parseInt(String(uid).split('_').pop()) || 1;
     if(!jaTem.has(uid)){
       await dbPut('relatorios', {uid, seq, data:f.data, equipe:f.equipe||'',
-        medicaoUid:f.medicaoUid||null, medicaoId:f.medicaoId||null, rua:f.rua||'', servico:f.servico||'',
+        rua:f.rua||'', servico:f.servico||'',
         status:'Aberto', criadoEm:f.criadoEm||new Date().toISOString(), concluidoEm:'', concluidoPor:'',
         corrigido:false, corrigidoPor:'', corrigidoEm:'', correcaoNota:'', conferido:false,
         origem:f.origem||'desktop', dispositivo:f.dispositivo||'', lancadoPor:f.lancadoPor||''});
@@ -3515,7 +2870,7 @@ async function corrPendentes(){
 }
 /* Faixa de aviso — aparece no Relatório Fotográfico e na Medição do Dia. */
 async function pintarCorrigidos(){
-  const alvos = ['rf-corr','md-corr'].map(id=>$(id)).filter(Boolean);
+  const alvos = ['rf-corr'].map(id=>$(id)).filter(Boolean);
   if(!alvos.length) return;
   let lista = [];
   try{ lista = await corrPendentes(); }catch(e){ lista = []; }
@@ -3550,7 +2905,6 @@ async function relConferir(uid){
   await histLog('Conferiu correção do fiscal','relatorio', null, `Relatório ${relCod(r)} · ${fmtData(r.data)} · ${r.equipe||''}`, '');
   await pintarCorrigidos();
   if($('pg-rf').classList.contains('on')) await rfLista();
-  if($('pg-med').classList.contains('on') && $('med-dia').style.display!=='none') await medDiaRender();
   if(syncLigado()) syncAgora(true);
 }
 async function relConferirTodos(){
@@ -3568,10 +2922,10 @@ function rfOrdem(){
     : '<i class="ti ti-sort-ascending"></i>Mais antigos primeiro';
   rfLista();
 }
-function rfCodigo(f, med){
-  /* Furo sem medição sai como AV (avulso) até o gestor encaixá-lo. */
-  const m = (med && med.numero) ? String(med.numero) : 'AV';
-  return `${m}-${String(f.num||0).padStart(4,'0')}`;
+/* Código do furo: data curta + número, já que não há mais medição a citar. */
+function rfCodigo(f){
+  const d = String(f.data||'').replace(/-/g,'').slice(2);
+  return `${d||'------'}-${String(f.num||0).padStart(4,'0')}`;
 }
 async function rfKpis(){
   try{
@@ -3586,29 +2940,25 @@ async function rfKpis(){
   }catch(err){ erroRender('rf-kpis', err, 'os indicadores'); }
 }
 async function rfListaFiltrada(){
-  const [furos, meds, mapa, mapR] = await Promise.all([dbGetAll('furos'), dbGetAll('medicoes'), rfMapaFotos(), relMapa()]);
-  const mapM = new Map(meds.map(m=>[m.id,m]));
-  const mapU = new Map(meds.map(m=>[m.uid,m]));
+  const [furos, mapa, mapR] = await Promise.all([dbGetAll('furos'), rfMapaFotos(), relMapa()]);
   const q  = $('rl-busca').value.trim().toLowerCase();
-  const fe = $('rl-eq').value, fm = $('rl-med').value, fs2 = $('rl-srv').value, fst = $('rl-st').value;
+  const fe = $('rl-eq').value, fs2 = $('rl-srv').value, fst = $('rl-st').value;
   let lista = furos.map(f=>{
-    const med = mapM.get(f.medicaoId) || mapU.get(f.medicaoUid) || null;
     const srcs = furoSrcs(f, mapa);
     const doMapa = mapa.get(f.uid);
     const endFoto = doMapa && doMapa.endereco;
     const rel = mapR.get(f.relatorioUid) || null;
-    return {...f, _med:med, _srcs:srcs, _nf:srcs.filter(Boolean).length,
-            _cod:rfCodigo(f, med), _regiao:(med&&med.regiao)||'',
+    return {...f, _srcs:srcs, _nf:srcs.filter(Boolean).length,
+            _cod:rfCodigo(f),
             _rel:rel, _corr:!!(rel && rel.corrigido && !rel.conferido) || !!f.corrigidoEmCampo,
             _bairroFoto:(endFoto&&endFoto.bairro)||''};
   }).filter(x=>{
     if(fe && x.equipe!==fe) return false;
-    if(fm && String(x.medicaoId)!==fm) return false;
     if(fs2 && x.servico!==fs2) return false;
     if(fst==='__semfoto'){ if(x._nf) return false; }
     else if(fst && furoStatus(x)!==fst) return false;
     const codRel = x._rel ? relCod(x._rel) : '';
-    if(q && !`${x._cod} ${codRel} ${x.rua||''} ${x.bairro||''} ${x._regiao} ${x.servico||''} ${x.equipe||''}`.toLowerCase().includes(q)) return false;
+    if(q && !`${x._cod} ${codRel} ${x.rua||''} ${x.bairro||''} ${x.servico||''} ${x.equipe||''}`.toLowerCase().includes(q)) return false;
     return true;
   });
   lista.sort((a,b)=>{
@@ -3639,7 +2989,6 @@ function rfAgruparRelatorios(furos){
     return {
       uid, rel, furos: fs, data: fs[0].data || '', equipe: fs[0].equipe || '',
       cod: rel ? relCod(rel) : (fs[0]._cod || '—'),
-      med: fs[0]._med || null, regiao: fs[0]._regiao || '',
       rua: um('rua'), servico: um('servico'),
       bairro: bairros[0] || '', maisBairro: Math.max(0, bairros.length-1),
       nf: fs.reduce((a,x)=>a+(x._nf||0),0),
@@ -3693,7 +3042,7 @@ async function rfLista(){
       : `<b>${linhas.length}</b> relatório(s) · <b>${furos.length}</b> furo(s)`) + extra;
     const tb = $('rl-tb');
     if(!mostra.length){
-      tb.innerHTML = `<tr><td colspan="11"><div class="empty"><i class="ti ti-camera-off"></i>
+      tb.innerHTML = `<tr><td colspan="10"><div class="empty"><i class="ti ti-camera-off"></i>
         Nenhum relatório com esses filtros.</div></td></tr>`; return;
     }
     tb.innerHTML = mostra.map((l,i)=>{
@@ -3703,13 +3052,11 @@ async function rfLista(){
         <td><b>${esc(l.cod)}</b>
           <div class="dtag" style="margin-top:2px"><i class="ti ti-${l.origem==='celular'?'device-mobile':'device-desktop'}"></i>${l.origem}</div>
           <div class="dtag" style="margin-top:2px"><i class="ti ti-map-pin"></i>${l.furos.length} furo(s)</div>
-          ${l.rel && l.rel.anexado ? `<div class="dtag" style="margin-top:2px;background:#E4F3E8;color:#1D6B33"><i class="ti ti-paperclip"></i>anexado à ${l.med?l.med.numero+'ª':''} medição</div>`:''}
           ${l.corr?`<div class="dtag" style="margin-top:2px;background:#FDF0D5;color:#8A5A00"><i class="ti ti-pencil"></i>corrigido pelo fiscal</div>`:''}</td>
         <td>${fmtData(l.data)}</td>
         <td>${esc(l.equipe||'—')}</td>
         <td title="${esc(l.rua.todos)}">${esc((l.rua.txt||'—').slice(0,30))}${l.rua.mais?` <span class="dtag">+${l.rua.mais}</span>`:''}</td>
         <td>${esc(l.bairro||'—')}${l.maisBairro?` <span class="dtag">+${l.maisBairro}</span>`:''}</td>
-        <td>${esc(l.regiao||'—')}</td>
         <td title="${esc(l.servico.todos)}">${esc((l.servico.txt||'—').slice(0,22))}${l.servico.mais?` <span class="dtag">+${l.servico.mais}</span>`:''}</td>
         <td class="ac">${l.nf ? `<b style="color:var(--green)">${l.nf}</b>` : '<span style="color:var(--red)">—</span>'}</td>
         <td class="ac"><span class="st ${ST_CLS[l.st]}">${l.st}</span></td>
@@ -3721,7 +3068,7 @@ async function rfLista(){
           <button class="btn ic sm" title="Abrir a prévia do documento" onclick="rfImprimirRel('${l.data}','${eqA}')"><i class="ti ti-eye"></i></button>
           <button class="btn ic sm" style="color:var(--red)" title="Excluir o relatório inteiro" onclick="rfExcluirRel('${esc(l.cod)}',[${l.ids.join(',')}])"><i class="ti ti-trash"></i></button>
         </td></tr>
-        <tr id="rld-${i}" style="display:none"><td colspan="11" style="padding:0">${rfRelDetalhe(l)}</td></tr>`;
+        <tr id="rld-${i}" style="display:none"><td colspan="10" style="padding:0">${rfRelDetalhe(l)}</td></tr>`;
     }).join('');
   }catch(err){ erroRender('rl-tb', err, 'a lista'); }
 }
@@ -3729,53 +3076,15 @@ function rfRelDet(i){
   const tr = $('rld-'+i); if(!tr) return;
   tr.style.display = (tr.style.display==='none') ? '' : 'none';
 }
-/* Validar é o momento em que o relatório passa a valer: os furos contam e o
-   documento fica ANEXADO À MEDIÇÃO — a mesma dos furos, ou a que está aberta
-   no escritório quando eles vieram avulsos do campo. */
-async function relMedicaoAlvo(furosDoRel){
-  const meds = await dbGetAll('medicoes');
-  const ids = [...new Set(furosDoRel.map(f=>f.medicaoId).filter(Boolean))];
-  if(ids.length===1) return meds.find(m=>m.id===ids[0]) || null;
-  const uids = [...new Set(furosDoRel.map(f=>f.medicaoUid).filter(Boolean))];
-  if(uids.length===1){ const m = meds.find(x=>x.uid===uids[0]); if(m) return m; }
-  const abertas = meds.filter(m=>(m.status||'Aberta')!=='Fechada');
-  return (abertas.length?abertas:meds).sort((a,b)=>(b.numero||0)-(a.numero||0))[0] || null;
-}
-async function relAnexarMedicao(ids){
-  const furos = await dbGetAll('furos');
-  const doRel = furos.filter(f=>ids.includes(f.id));
-  if(!doRel.length) return null;
-  const med = await relMedicaoAlvo(doRel);
-  if(!med) return null;
-  for(const f of doRel){
-    if(f.medicaoId !== med.id || f.medicaoUid !== med.uid){
-      await dbPut('furos', {...f, medicaoId:med.id, medicaoUid:med.uid});
-      const fts = (await dbGetAll('fotos')).filter(x=>x.furoUid===f.uid);
-      for(const ft of fts) await dbPut('fotos', {...ft, medicaoUid:med.uid});
-    }
-  }
-  const relUidAlvo = doRel[0].relatorioUid;
-  if(relUidAlvo){
-    const rels = await dbGetAll('relatorios');
-    const r = rels.find(x=>x.uid===relUidAlvo);
-    if(r) await dbPut('relatorios', {...r, medicaoId:med.id, medicaoUid:med.uid,
-      anexado:true, anexadoEm:new Date().toISOString(), anexadoPor:usuarioNome()});
-    await histLog('Anexou relatório à medição','relatorio', relUidAlvo,
-      `${r?relCod(r):''} → ${med.numero}ª Medição · ${med.regiao||''}`, '');
-  }
-  return med;
-}
+/* Validar é o momento em que o relatório passa a valer: os furos deixam de
+   estar pendentes e o documento entra no acervo. */
 function rfValidarRel(ids){
   confirmar('Validar relatório',
-    `<b>${ids.length}</b> furo(s) deste relatório passam a contar e o documento é
-     <b>anexado à medição</b>. Confirmar?`,
+    `<b>${ids.length}</b> furo(s) deste relatório passam a contar como validados. Confirmar?`,
     async ()=>{
       await histAplicarValidacao(ids,'Validado','');
-      const med = await relAnexarMedicao(ids);
       limpaAlertas('rf-err','rf-ok');
-      alerta('rf-ok', med
-        ? `Relatório validado e anexado à <b>${med.numero}ª Medição</b> — ${esc(med.regiao||'')} lote ${esc(med.lote||'')}.`
-        : 'Relatório validado. <b>Nenhuma medição cadastrada</b> para anexar — cadastre em Medições → Nova Medição.');
+      alerta('rf-ok', 'Relatório validado.');
       await rfRefresh();
       if(syncLigado()) syncAgora(true);
     });
@@ -3821,21 +3130,11 @@ function rfValidarSel(){
   limpaAlertas('rf-err','rf-ok');
   if(!ids.length){ alerta('rf-err','Marque pelo menos um registro na lista.'); return; }
   confirmar('Validar selecionados',
-    `<b>${ids.length}</b> furo(s) passam a contar e os relatórios deles ficam <b>anexados à medição</b>. Confirmar?`,
+    `<b>${ids.length}</b> furo(s) passam a contar como validados. Confirmar?`,
     async ()=>{
       await histAplicarValidacao(ids,'Validado','');
-      const furos = await dbGetAll('furos');
-      const porRel = new Map();
-      furos.filter(f=>ids.includes(f.id)).forEach(f=>{
-        const k = f.relatorioUid || 'sem';
-        if(!porRel.has(k)) porRel.set(k, []); porRel.get(k).push(f.id);
-      });
-      let med = null;
-      for(const [,lote] of porRel) med = (await relAnexarMedicao(lote)) || med;
       limpaAlertas('rf-err','rf-ok');
-      alerta('rf-ok', med
-        ? `<b>${ids.length}</b> furo(s) validados e anexados à <b>${med.numero}ª Medição</b>.`
-        : `<b>${ids.length}</b> furo(s) validados.`);
+      alerta('rf-ok', `<b>${ids.length}</b> furo(s) validados.`);
       await rfRefresh();
       if(syncLigado()) syncAgora(true);
     });
@@ -3913,8 +3212,6 @@ async function rfLoteAbrir(){
   const [srvs, eqs] = await Promise.all([srvGetAll(), eqGetAll()]);
   setSel('lo-srv','<option value="">— não alterar —</option>'+srvs.map(s=>`<option>${esc(s.nome)}</option>`).join(''));
   setSel('lo-eq','<option value="">— não alterar —</option>'+eqs.map(e=>`<option>${esc(e.nome)}</option>`).join(''));
-  const meds = (await dbGetAll('medicoes')).sort((a,b)=>(b.numero||0)-(a.numero||0));
-  setSel('lo-med','<option value="">— não alterar —</option>'+meds.map(m=>`<option value="${m.id}">${esc(medRotulo(m))}</option>`).join(''));
   $('lo-rua').value=''; $('lo-bairro').value='';
   limpaAlertas('lote-err');
   $('lote-modal').style.display='flex';
@@ -3922,12 +3219,9 @@ async function rfLoteAbrir(){
 async function rfLoteAplicar(){
   const ids = rfSelecionados();
   const rua = $('lo-rua').value.trim(), bairro = $('lo-bairro').value.trim();
-  const srv = $('lo-srv').value, eq = $('lo-eq').value, medId = $('lo-med').value;
-  if(!rua && !bairro && !srv && !eq && !medId){ alerta('lote-err','Preencha ao menos um campo para aplicar.'); return; }
+  const srv = $('lo-srv').value, eq = $('lo-eq').value;
+  if(!rua && !bairro && !srv && !eq){ alerta('lote-err','Preencha ao menos um campo para aplicar.'); return; }
   const furos = await dbGetAll('furos');
-  const meds = await dbGetAll('medicoes');
-  const medNova = medId ? meds.find(m=>m.id===parseInt(medId)) : null;
-  const fotos = await dbGetAll('fotos');
   let n = 0;
   for(const id of ids){
     const f = furos.find(x=>x.id===id); if(!f) continue;
@@ -3936,10 +3230,6 @@ async function rfLoteAplicar(){
     if(bairro) novo.bairro = bairro;
     if(srv) novo.servico = srv;
     if(eq) novo.equipe = eq;
-    if(medNova){
-      novo.medicaoId = medNova.id; novo.medicaoUid = medNova.uid;
-      for(const ft of fotos.filter(x=>x.furoUid===f.uid)) await dbPut('fotos', {...ft, medicaoUid:medNova.uid});
-    }
     await dbPut('furos', novo); n++;
   }
   await histLog('Preencheu em lote','furo', null, `${n} furo(s) alterados`, '');
@@ -3983,7 +3273,7 @@ async function rfEdFuros(){
   return furos.filter(f=>(!ED_DIA || f.data===ED_DIA) && (!ED_EQ || f.equipe===ED_EQ))
               .sort((a,b)=>(parseInt(a.num)||0)-(parseInt(b.num)||0));
 }
-function edImprimir(){ medDiaImprimir(ED_DIA, ED_EQ); }
+function edImprimir(){ imprimirCompleto(ED_DIA, ED_EQ); }
 async function rfEdRender(){
   try{
     const [lista, fotos, srvs, eqs] = await Promise.all([rfEdFuros(), dbGetAll('fotos'), srvGetAll(), eqGetAll()]);
@@ -3991,13 +3281,9 @@ async function rfEdRender(){
     fotos.forEach(x=>{ if(!porFuro.has(x.furoUid)) porFuro.set(x.furoUid, {}); porFuro.get(x.furoUid)[x.tipo] = x; });
     const optSrv = s => srvs.map(x=>`<option${x.nome===s?' selected':''}>${esc(x.nome)}</option>`).join('');
     const optEq  = e => '<option value="">—</option>'+eqs.map(x=>`<option${x.nome===e?' selected':''}>${esc(x.nome)}</option>`).join('');
-    const num = (uid,tipo,campo,v) =>
-      `<input type="number" step="0.01" value="${v!=null?v:''}" style="width:66px;padding:5px;text-align:right"
-              onchange="rfEdDim('${uid}','${tipo}','${campo}',this.value)">`;
-
     const tb = $('rf-ed-tb');
     if(!lista.length){
-      tb.innerHTML = `<tr><td colspan="13"><div class="empty"><i class="ti ti-pencil-off"></i>
+      tb.innerHTML = `<tr><td colspan="6"><div class="empty"><i class="ti ti-pencil-off"></i>
         Nenhum furo neste dia. Use <b>Adicionar furo neste dia</b> para lançar manualmente.</div></td></tr>`;
       $('rf-ed-info').textContent = '';
       return;
@@ -4005,7 +3291,6 @@ async function rfEdRender(){
     tb.innerHTML = lista.map(f=>{
       const p = porFuro.get(f.uid) || {};
       const a = p.antes || null, d = p.depois || null;
-      const m = furoMedida([a,d].filter(Boolean), 'antes');
       const nf = [a,d].filter(x=>x && (x.url || x.dataHora)).length;
       return `<tr>
         <td class="ac"><input type="number" value="${f.num||''}" style="width:56px;padding:5px;text-align:center"
@@ -4014,31 +3299,23 @@ async function rfEdRender(){
               onchange="rfEdCampo('${f.uid}','rua',this.value)"></td>
         <td><select style="width:170px;padding:5px" onchange="rfEdCampo('${f.uid}','servico',this.value)">${optSrv(f.servico)}</select></td>
         <td><select style="width:110px;padding:5px" onchange="rfEdCampo('${f.uid}','equipe',this.value)">${optEq(f.equipe)}</select></td>
-        <td class="ac">${num(f.uid,'antes','largura', a&&a.largura)}</td>
-        <td class="ac">${num(f.uid,'antes','comprimento', a&&a.comprimento)}</td>
-        <td class="ac">${num(f.uid,'antes','espessura', a&&a.espessura)}</td>
-        <td class="ac">${num(f.uid,'depois','largura', d&&d.largura)}</td>
-        <td class="ac">${num(f.uid,'depois','comprimento', d&&d.comprimento)}</td>
-        <td class="ac">${num(f.uid,'depois','espessura', d&&d.espessura)}</td>
-        <td class="ar"><b>${m.area?nBR(m.area,2):'—'}</b></td>
         <td class="ac">${nf?`<b style="color:var(--green)">${nf}</b>`:'<span style="color:var(--red)">—</span>'}</td>
         <td class="ac" style="white-space:nowrap">
           <button class="btn ic sm" title="Ver fotos" onclick="histAuditoria(${f.id})"><i class="ti ti-photo"></i></button>
           <button class="btn ic sm" title="Excluir furo" onclick="rfEdExcluir('${f.uid}',${f.num})"><i class="ti ti-trash"></i></button>
         </td></tr>`;
     }).join('');
-    const area = lista.reduce((s,f)=>{
+    const comFoto = lista.filter(f=>{
       const p = porFuro.get(f.uid) || {};
-      return s + (furoMedida([p.antes,p.depois].filter(Boolean),'antes').area||0);
-    },0);
-    $('rf-ed-info').innerHTML = `<b>${lista.length}</b> furo(s) neste dia · área somada <b>${nBR(area,2)} m²</b>`;
+      return [p.antes,p.depois].filter(x=>x && (x.url || x.dataHora)).length;
+    }).length;
+    $('rf-ed-info').innerHTML = `<b>${lista.length}</b> furo(s) neste dia · <b>${comFoto}</b> com foto`;
   }catch(err){ erroRender('rf-ed-tb', err, 'os furos do dia'); }
 }
 /* O editor pode estar aberto a partir de duas telas: atualiza a que estiver visível. */
 async function edAtualizarTelas(){
   try{
     if($('pg-rf').classList.contains('on')){ await rfPreview(); await rfKpis(); await rfLista(); }
-    if($('pg-med').classList.contains('on') && $('med-dia').style.display!=='none') await medDiaRender();
   }catch(e){ console.warn(e); }
 }
 async function rfEdCampo(uid, campo, valor){
@@ -4057,30 +3334,6 @@ async function rfEdCampo(uid, campo, valor){
     if(syncLigado()) syncAgora(true);
   }catch(err){ alerta('rf-ed-err','Não deu para salvar: '+esc(err.message||err)); }
 }
-/* Grava a dimensão na foto correspondente; se a foto ainda não existe
-   (furo lançado sem imagem), cria o registro só com a medida. */
-async function rfEdDim(uid, tipo, campo, valor){
-  try{
-    const furos = await dbGetAll('furos');
-    const f = furos.find(x=>x.uid===uid); if(!f) return;
-    const fotos = await dbGetAll('fotos');
-    let fo = fotos.find(x=>x.furoUid===uid && x.tipo===tipo);
-    const v = (valor==='' ? null : parseFloat(String(valor).replace(',','.')));
-    const base = fo ? {...fo} : {
-      furoUid:uid, medicaoUid:f.medicaoUid||null, furoNum:f.num, tipo,
-      rotulo:`Furo ${f.num} ${tipo==='antes'?'Antes':'Depois'}`,
-      enviada:false, url:'', arquivo:'', somenteMedida:true
-    };
-    base[campo] = v;
-    const L = parseFloat(base.largura)||0, C = parseFloat(base.comprimento)||0, E = parseFloat(base.espessura)||0;
-    base.area   = (L&&C) ? +(L*C).toFixed(3) : null;
-    base.volume = (base.area&&E) ? +(base.area*(E/100)).toFixed(4) : null;
-    if(fo) await dbPut('fotos', base); else await dbAdd('fotos', base);
-    await histLog('Editou medida','furo', uid, `Furo ${f.num} · ${tipo} · ${campo} = ${v==null?'—':v}`, '');
-    await rfEdRender(); await edAtualizarTelas();
-    if(syncLigado()) syncAgora(true);
-  }catch(err){ alerta('rf-ed-err','Não deu para salvar a medida: '+esc(err.message||err)); }
-}
 async function rfDiaAddFuro(){
   limpaAlertas('rf-ed-err','rf-ed-ok');
   const dia = ED_DIA || rfDiaAtual();
@@ -4089,11 +3342,8 @@ async function rfDiaAddFuro(){
     const furos = await dbGetAll('furos');
     const doDia = furos.filter(x=>x.data===dia);
     const modelo = doDia[doDia.length-1] || furos[furos.length-1] || {};
-    const max = furos.reduce((m,x)=>Math.max(m, parseInt(x.num)||0), 0);
-    const meds = await dbGetAll('medicoes');
-    const med = meds.find(m=>m.id===modelo.medicaoId) || null;
+    const max = doDia.reduce((m,x)=>Math.max(m, parseInt(x.num)||0), 0);
     await dbAdd('furos', {
-      medicaoId:(med&&med.id)||null, medicaoUid:(med&&med.uid)||null,
       num:max+1, data:dia, rua:modelo.rua||'', servico:modelo.servico||'', equipe:ED_EQ||modelo.equipe||'',
       origem:'desktop', lancadoPor:usuarioNome(), status:(CU==='g'?'Validado':'Pendente'),
       validadoPor:(CU==='g'?usuarioNome():''), validadoEm:(CU==='g'?new Date().toISOString():''),
@@ -4123,27 +3373,27 @@ function rfEdExcluir(uid, num){
 /*                             RESUMO GERAL                                */
 /* ====================================================================== */
 function dashLimpar(){
-  ['d-med','d-eq','d-di','d-df'].forEach(i=>$(i).value='');
+  ['d-eq','d-di','d-df'].forEach(i=>$(i).value='');
   dashRender();
 }
 async function dashRender(){
   try{
     await preencherSelects();
-    const [meds, furos] = await Promise.all([dbGetAll('medicoes'), dbGetAll('furos')]);
-    const fm = $('d-med').value, fe = $('d-eq').value, di = $('d-di').value, df = $('d-df').value;
+    const [furos, mapaFotos] = await Promise.all([dbGetAll('furos'), rfMapaFotos()]);
+    const fe = $('d-eq').value, di = $('d-di').value, df = $('d-df').value;
     const lista = furos.filter(f=>{
-      if(fm && f.medicaoId!==parseInt(fm)) return false;
       if(fe && f.equipe!==fe) return false;
       if(di && (f.data||'') < di) return false;
       if(df && (f.data||'') > df) return false;
       return true;
     });
 
-    const nFotos = lista.reduce((s,f)=>s+(f.fotos||[]).filter(Boolean).length,0);
-    const area = lista.reduce((s,f)=>s+(parseFloat(f.area)||0),0);
+    /* Conta pela mesma fonte do Relatório Fotográfico: as fotos do celular
+       ficam na store 'fotos', não no campo antigo do próprio furo. */
+    const nDoFuro = f => furoSrcs(f, mapaFotos).filter(Boolean).length;
+    const nFotos = lista.reduce((s,f)=>s+nDoFuro(f),0);
     const dias = new Set(lista.map(f=>f.data).filter(Boolean)).size;
-    const semFoto = lista.filter(f=>!(f.fotos||[]).filter(Boolean).length).length;
-    const abertas = meds.filter(m=>(m.status||'Aberta')==='Aberta').length;
+    const semFoto = lista.filter(f=>!nDoFuro(f)).length;
     const pend = lista.filter(f=>furoStatus(f)==='Pendente').length;
     const val  = lista.filter(f=>furoStatus(f)==='Validado').length;
 
@@ -4152,8 +3402,6 @@ async function dashRender(){
       kpi('Validados', val, lista.length?`${Math.round(val/lista.length*100)}% do total`:'', 'gn') +
       kpi('Aguardando validação', pend, pend?'não contam no relatório do dia':'nada parado', pend?'am':'gn') +
       kpi('Fotos anexadas', nFotos, lista.length?`média de ${(nFotos/lista.length).toFixed(1)} por furo`:'', 'pu') +
-      kpi('Área recomposta', area?area.toFixed(2)+' m²':'—', 'soma de largura × comprimento', 'bl') +
-      kpi('Medições', meds.length, `${abertas} aberta(s)`, 'pu') +
       kpi('Furos sem foto', semFoto, semFoto?'pendentes de registro':'tudo registrado', semFoto?'rd':'gn');
     histBadge(pend);
 
@@ -4164,27 +3412,6 @@ async function dashRender(){
       .map(d=>({label:fmtData(d.label), val:d.val}));
     barChart($('d-ch-dia'), porDia, '#B98400');
 
-    const tb = $('d-tb');
-    if(!meds.length){
-      tb.innerHTML = `<tr><td colspan="8"><div class="empty"><i class="ti ti-clipboard-off"></i>
-        Nenhuma medição cadastrada. Comece em <b>Medições → Nova Medição</b>.</div></td></tr>`;
-      return;
-    }
-    tb.innerHTML = meds.sort((a,b)=>(b.numero||0)-(a.numero||0)).map(m=>{
-      const fs = furos.filter(f=>f.medicaoId===m.id);
-      const fotos = fs.reduce((s,f)=>s+(f.fotos||[]).filter(Boolean).length,0);
-      const per = (m.dataIni||m.dataFim) ? `${fmtData(m.dataIni)} a ${fmtData(m.dataFim)}` : '—';
-      return `<tr>
-        <td><b>${m.numero}ª Medição</b></td>
-        <td>${esc(m.regiao)} · Lote ${esc(m.lote)}</td>
-        <td>${esc(m.equipe)}</td>
-        <td>${per}</td>
-        <td class="ac"><b>${fs.length}</b></td>
-        <td class="ac">${fotos}</td>
-        <td class="ac"><span class="st ${m.status==='Fechada'?'s-ok':'s-pd'}">${esc(m.status||'Aberta')}</span></td>
-        <td class="ac"><button class="btn sm" onclick="rfIrPara(${m.id})"><i class="ti ti-camera"></i>Relatório</button></td>
-      </tr>`;
-    }).join('');
   }catch(err){ erroRender('d-kpis', err, 'o resumo geral'); }
 }
 
@@ -4209,8 +3436,6 @@ async function abrirSessao(){
   }
 
   $('f-data').value = hoje();
-  $('m-obj').value = CFG.objeto;
-  await medReset();
   furoPintaSlot(0); furoPintaSlot(1);
   await furoProxNum();
   aplicarPerfil(CU);
@@ -4228,6 +3453,9 @@ async function abrirSessao(){
       {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
     $('lg-logo').src = CFG.logoEmpresa || LOGO_EMPRESA_PADRAO;
     cfgVersao();
+    /* Confere a versão publicada sozinho, como o app faz. */
+    if(navigator.onLine) setTimeout(()=>procurarAtualizacaoSistema(true), 4000);
+    setInterval(()=>{ if(!document.hidden && navigator.onLine) procurarAtualizacaoSistema(true); }, 1800000);
     /* Puxa os usuários da nuvem antes do login, para que uma senha trocada
        em outro aparelho já valha aqui. */
     if(syncLigado()){ try{ await syncBaixar(); }catch(e){ console.warn('Sem nuvem no login:', e); } }

@@ -1,8 +1,8 @@
 {
-  "appVersion": "20260902-018",
+  "appVersion": "20260903-019",
   "apkVersionCode": 6,
   "apkVersionName": "1.5",
   "apkUrl": "https://gedremsisep-lgtm.github.io/rr-barros-app/RR-Barros.apk",
-  "publicadoEm": "2026-09-02T19:20:00Z",
-  "notas": "Tela do campo so com as duas fotos. Aplicativo passa a se atualizar sozinho e mostra a versao em Ajustes."
+  "publicadoEm": "2026-09-03T12:00:00Z",
+  "notas": "Sem campos de medida e sem o modulo de Medicoes: o sistema conta furos e fotos."
 }

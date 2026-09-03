@@ -1,6 +1,6 @@
 {
-  "systemVersion": "20260902-018",
+  "systemVersion": "20260903-020",
   "exeVersion": "1.1.0",
-  "publicadoEm": "2026-09-02T19:00:00Z",
-  "notas": "Campo de versao em Configuracoes e no rodape do menu, com botao para procurar atualizacao."
+  "publicadoEm": "2026-09-03T15:00:00Z",
+  "notas": "Sem o modulo Medicoes. O sistema avisa sozinho quando sai versao nova."
 }

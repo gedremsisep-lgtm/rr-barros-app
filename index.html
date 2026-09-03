@@ -239,7 +239,6 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
 <div class="tela" id="t-seq">
   <div class="card">
     <div class="sh"><i class="ti ti-clipboard-list"></i>1 · Dia de serviço</div>
-    <div id="s-medinfo" style="font-size:12.5px;color:var(--text2);margin-bottom:12px"></div>
     <div class="f2">
       <div class="fg"><label>Data *</label><input type="date" id="s-data" onchange="seqRender()"></div>
       <div class="fg"><label>Equipe</label><select id="s-eq" onchange="seqRender()"></select></div>
@@ -417,7 +416,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20260902-018';
+const APP_VERSION = '20260903-019';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -434,10 +433,10 @@ const NUVEM = {
 };
 
 /* ------------------------------- BANCO ---------------------------------- */
-const DB_NAME='RRBARROS_APP', DB_VERSION=4;   /* bump obrigatorio ao somar store */
-const STORES=['furos','relatorios','medicoes','equipes','servicos','historico','dispositivos','usuarios','fotos','imagens'];
+const DB_NAME='RRBARROS_APP', DB_VERSION=5;   /* bump obrigatorio ao somar store */
+const STORES=['furos','relatorios','equipes','servicos','historico','dispositivos','usuarios','fotos','imagens'];
 /* 'imagens' guarda os bytes das fotos e NUNCA sobe pela tabela: as imagens vao para o Storage. */
-const SYNC_STORES=['furos','relatorios','medicoes','equipes','servicos','historico','dispositivos','usuarios','fotos'];
+const SYNC_STORES=['furos','relatorios','equipes','servicos','historico','dispositivos','usuarios','fotos'];
 const BUCKET='fotos';
 let db=null;
 
@@ -668,10 +667,6 @@ async function baixar(){
       if(local && (local._ts||0) > new Date(ln.atualizado_em).getTime()+1500) continue;
       const rec={...(ln.dados||{}),uid:ln.uid};
       /* Cada aparelho tem seus próprios ids locais — o vínculo real é o uid da medição. */
-      if(ln.store==='furos' && rec.medicaoUid){
-        const m=(await dbGetAll('medicoes')).find(x=>x.uid===rec.medicaoUid);
-        if(m) rec.medicaoId=m.id;
-      }
       if(local){ rec.id=local.id; await _rawPut(ln.store,rec); }
       else { delete rec.id; await _rawAdd(ln.store,rec); }
       total++;
@@ -766,9 +761,8 @@ async function baixarUsuarios(){
     if(!conectado()) throw new Error('Este app não tem a conexão gravada. Toque 5 vezes em “versão” para configurar.');
     await baixar();
     const us=await dbGetAll('usuarios');
-    const meds=await dbGetAll('medicoes');
     await preencherListas();
-    if(us.length) alerta('lg-info', `<b>${us.length}</b> usuário(s) e <b>${meds.length}</b> medição(ões) recebidos. Pode entrar.`, 0);
+    if(us.length) alerta('lg-info', `<b>${us.length}</b> usuário(s) recebido(s). Pode entrar.`, 0);
     else alerta('lg-diag','Conectou na nuvem, mas nenhum usuário veio. Peça ao escritório para abrir o sistema no computador e conferir se o indicador do topo mostra <b>Sincronizado</b>.',0);
   }catch(err){
     localStorage.setItem('rrbapp_erro', String(err && err.message || err));
@@ -854,7 +848,7 @@ function ir(t){
   $('nav').style.display = (t==='par') ? 'none' : 'grid';
   window.scrollTo(0,0);
   if(t==='inicio'){ inicioRender(); pintarFaixaAtualizacao(); }
-  if(t==='seq'){ ativarGPS(false); pintarGPS(); seqResolverMed().then(seqRender); }
+  if(t==='seq'){ ativarGPS(false); pintarGPS(); seqRender(); }
   if(t==='meus') renderMeus();
   if(t==='enviar') pintarEnvio();
   if(t==='ajustes'){
@@ -869,13 +863,8 @@ function ir(t){
 
 /* ------------------------------- LISTAS --------------------------------- */
 async function preencherListas(){
-  const [meds,eqs,srvs,furos]=await Promise.all([dbGetAll('medicoes'),dbGetAll('equipes'),dbGetAll('servicos'),dbGetAll('furos')]);
-  const abertas=meds.filter(m=>(m.status||'Aberta')!=='Fechada');
-  const usar=abertas.length?abertas:meds;
-  const opt=usar.sort((a,b)=>(b.numero||0)-(a.numero||0))
-    .map(m=>`<option value="${esc(m.uid)}">${m.numero}ª · ${esc(m.regiao||'')} L${esc(m.lote||'')} · ${esc(m.equipe||'')}</option>`).join('');
+  const [eqs,srvs,furos]=await Promise.all([dbGetAll('equipes'),dbGetAll('servicos'),dbGetAll('furos')]);
   window._srvs = srvs.length ? srvs.map(s=>s.nome) : ['Recomposição de Capa Asfáltica'];
-  await seqResolverMed();
   setSel('s-srv', window._srvs.map(s=>`<option>${esc(s)}</option>`).join(''));
   preencherEquipes('a-eq'); preencherEquipes('s-eq');
   const ruas=[...new Set(furos.map(f=>f.rua).filter(Boolean))].sort();
@@ -1216,8 +1205,9 @@ async function carimbar(dataUrl, m){
 /*                     ENVIO DAS IMAGENS PARA O STORAGE                    */
 /* ====================================================================== */
 function stCaminho(fo){
-  const med = (fo.medicaoUid||'sem-medicao').slice(0,8);
-  return `medicao-${med}/furo-${String(fo.furoNum).padStart(3,'0')}-${fo.tipo}.jpg`;
+  /* Uma pasta por relatório: mantém as fotos do mesmo dia/equipe juntas. */
+  const rel = String(fo.relatorioUid || 'sem-relatorio').slice(-16);
+  return `${rel}/furo-${String(fo.furoNum).padStart(3,'0')}-${fo.tipo}.jpg`;
 }
 function stUrlPublica(caminho){
   return (SYNC.url||'').replace(/\/+$/,'') + '/storage/v1/object/public/' + BUCKET + '/' + caminho;
@@ -1244,37 +1234,6 @@ async function stEnviar(caminho, dataUrl){
 /* ====================================================================== */
 let SEQ_TIPO = null, SEQ_FURO = null;
 
-/* A medição não é escolhida em campo: o app usa sozinho a que está aberta
-   no escritório (a de número mais alto). Isso evita erro de lançamento
-   no dia a dia — quem controla qual medição está valendo é o gestor. */
-let MED_ATUAL = null;
-async function seqResolverMed(){
-  const meds = await dbGetAll('medicoes');
-  const abertas = meds.filter(m=>(m.status||'Aberta') !== 'Fechada');
-  const alvo = (abertas.length ? abertas : meds).sort((a,b)=>(b.numero||0)-(a.numero||0))[0] || null;
-  MED_ATUAL = alvo;
-  const box = $('s-medinfo');
-  const soltos = await seqSemMedicao();
-  if(box){
-    if(alvo){
-      box.innerHTML = `<i class="ti ti-clipboard-check" style="color:var(--green)"></i>
-         Lançando na <b>${alvo.numero}ª Medição</b> · ${esc(alvo.regiao||'')} — Lote ${esc(alvo.lote||'')}`
-        + (soltos.length ? `<div style="margin-top:7px">
-             <button class="btn sm" style="width:100%" onclick="seqVincular()">
-             <i class="ti ti-link"></i>Vincular ${soltos.length} furo(s) avulso(s) a esta medição</button></div>` : '');
-    } else {
-      box.innerHTML = `<i class="ti ti-clipboard" style="color:var(--text3)"></i>
-        Sem medição no aparelho — pode lançar normalmente. Os furos ficam como <b>avulsos</b>
-        e o escritório encaixa na medição certa depois.`;
-    }
-  }
-  const add = $('s-add'); if(add) add.disabled = false;
-  if(alvo){
-    if(alvo.equipe && [...$('s-eq').options].some(o=>o.value===alvo.equipe)) $('s-eq').value = alvo.equipe;
-    if(alvo.servicoPadrao && [...$('s-srv').options].some(o=>o.value===alvo.servicoPadrao)) $('s-srv').value = alvo.servicoPadrao;
-  }
-  return alvo;
-}
 /* ===================== RELATÓRIO DO DIA =====================
    A unidade de trabalho é o RELATÓRIO: um por dia e por equipe.
    Todos os furos lançados caem dentro dele e o Concluir gera um único
@@ -1315,7 +1274,6 @@ async function relCriar(data, equipe){
   const seq = (lista.reduce((a,r)=>Math.max(a, r.seq||0), 0)) + 1;
   const novo = {
     uid: relUid(data, equipe, seq), seq, data, equipe,
-    medicaoUid: (MED_ATUAL && MED_ATUAL.uid) || null, medicaoId: (MED_ATUAL && MED_ATUAL.id) || null,
     rua: $('s-rua') ? $('s-rua').value.trim() : '', servico: $('s-srv') ? $('s-srv').value : '',
     status: 'Aberto', criadoEm: new Date().toISOString(), concluidoEm: '', concluidoPor: '',
     corrigido: false, corrigidoPor: '', corrigidoEm: '', correcaoNota: '', conferido: false,
@@ -1347,8 +1305,7 @@ async function relMigrar(){
     const seq = parseInt(String(uid).split('_').pop()) || 1;
     if(!jaTem.has(uid)){
       await dbPut('relatorios', {
-        uid, seq, data:f.data, equipe:eq, medicaoUid:f.medicaoUid||null, medicaoId:f.medicaoId||null,
-        rua:f.rua||'', servico:f.servico||'', status:'Aberto', criadoEm:f.criadoEm||new Date().toISOString(),
+        uid, seq, data:f.data, equipe:eq, rua:f.rua||'', servico:f.servico||'', status:'Aberto', criadoEm:f.criadoEm||new Date().toISOString(),
         concluidoEm:'', concluidoPor:'', corrigido:false, corrigidoPor:'', corrigidoEm:'', correcaoNota:'',
         conferido:false, origem:f.origem||'mobile', dispositivo:f.dispositivo||'', lancadoPor:f.lancadoPor||''
       });
@@ -1369,41 +1326,20 @@ async function relFuros(uid){
   const todos = await dbGetAll('furos');
   return todos.filter(f=>f.relatorioUid===uid).sort((a,b)=>(parseInt(a.num)||0)-(parseInt(b.num)||0));
 }
-async function seqSemMedicao(){
-  const data = $('s-data') ? $('s-data').value : null;
-  const todos = await dbGetAll('furos');
-  return todos.filter(f=>!f.medicaoUid && (!data || f.data===data));
-}
-async function seqVincular(){
-  if(!MED_ATUAL) return;
-  const soltos = await seqSemMedicao();
-  confirmarSheet('Vincular furos',
-    `<b>${soltos.length}</b> furo(s) avulso(s) passam para a <b>${MED_ATUAL.numero}ª Medição</b>. Confirmar?`,
-    async ()=>{
-      for(const f of soltos) await dbPut('furos', {...f, medicaoUid:MED_ATUAL.uid, medicaoId:MED_ATUAL.id||null});
-      const fts = await dbGetAll('fotos');
-      const uids = new Set(soltos.map(f=>f.uid));
-      for(const ft of fts.filter(x=>uids.has(x.furoUid))) await dbPut('fotos', {...ft, medicaoUid:MED_ATUAL.uid});
-      await seqResolverMed(); await seqRender();
-      alerta('s-ok','Furos vinculados à medição.');
-    });
-}
 async function seqFotosDe(furoUid){
   const fs = await dbGetAll('fotos');
   return fs.filter(x=>x.furoUid===furoUid);
 }
 async function seqAddFuro(){
   limpa('s-err','s-ok');
-  const medUid = MED_ATUAL && MED_ATUAL.uid;
   if(!$('s-data').value){ alerta('s-err','Informe a data do serviço.'); return; }
-  const m = MED_ATUAL;
   const rel = await relAtualDoDia(true);
   if(rel && rel.status==='Concluído') await relGravar(rel.uid, {status:'Aberto'});
   const doRel = await relFuros(REL_ATUAL.uid);
   const num = doRel.reduce((a,f)=>Math.max(a, parseInt(f.num)||0), 0) + 1;
   await dbAdd('furos', {
     relatorioUid:REL_ATUAL.uid,
-    medicaoUid:medUid||null, medicaoId:(m&&m.id)||null, num, data:$('s-data').value,
+    num, data:$('s-data').value,
     rua:$('s-rua').value.trim(), servico:$('s-srv').value, equipe:$('s-eq').value||ID.equipe,
     origem:'mobile', dispositivo:ID.dispositivo, lancadoPor:ID.nome, lancadoLogin:ID.login,
     status:'Pendente', validadoPor:'', validadoEm:'', motivoDevolucao:''
@@ -1518,7 +1454,7 @@ async function seqRecebeuFoto(input){
     const fotosDoFuro = await seqFotosDe(furoUid);
     const ja = fotosDoFuro.find(x=>x.tipo===tipo);
     const registro = {
-      medicaoUid:furo.medicaoUid, furoUid, furoNum:furo.num, tipo,
+      relatorioUid:furo.relatorioUid, furoUid, furoNum:furo.num, tipo,
       rotulo:`Furo ${furo.num} ${tipo==='antes'?'Antes':'Depois'}`,
       dataHora:meta.dataHora, lat:meta.lat, lng:meta.lng, alt:meta.alt, precisao:meta.precisao,
       heading:meta.heading, direcao:meta.direcao, indice:meta.indice,
@@ -1777,8 +1713,6 @@ async function seqGerarPDF(compartilhar){
     const jsPDF = await carregarJsPDF();
     const doc = new jsPDF({unit:'mm', format:'a4', orientation:'portrait', compress:true});
 
-    const meds = await dbGetAll('medicoes');
-    const med = MED_ATUAL || {numero:'',regiao:'',lote:'',equipe:$('s-eq').value||''};
     const fotos = await dbGetAll('fotos');
     const imgs = await dbGetAll('imagens');
     const mapaI = new Map(imgs.map(i=>[i.fotoUid,i]));
@@ -1798,8 +1732,8 @@ async function seqGerarPDF(compartilhar){
       doc.setFont('helvetica','bold'); doc.setFontSize(9);
       doc.text(SYNC.empresa || 'RR BARROS SERVIÇOS E CONSTRUÇÕES LTDA', LARG/2, y+4, {align:'center'});
       doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
-      const eqTxt = (REL_ATUAL && REL_ATUAL.equipe) || med.equipe || '';
-      doc.text(`${med.numero||''}ª MEDIÇÃO · REGIÃO ${med.regiao||''} — LOTE ${med.lote||''} · ${eqTxt}`
+      const eqTxt = (REL_ATUAL && REL_ATUAL.equipe) || $('s-eq').value || '';
+      doc.text((eqTxt ? 'EQUIPE '+eqTxt : '')
                + (REL_ATUAL?`  ·  RELATÓRIO ${relCod(REL_ATUAL)}`:''), LARG/2, y+8, {align:'center'});
       doc.setFont('helvetica','bold'); doc.setFontSize(8);
       doc.text('DIÁRIO DE SUPERVISÃO - RELATÓRIO FOTOGRÁFICO', M, y+14);
@@ -1847,7 +1781,7 @@ async function seqGerarPDF(compartilhar){
     limpa('s-prog');
     const nome = REL_ATUAL
       ? `Relatorio_${relCod(REL_ATUAL)}_${relSlug(REL_ATUAL.equipe)}.pdf`
-      : `Relatorio_${med.numero?med.numero+'a_Medicao':'Avulso'}_${($('s-data').value||'').replace(/-/g,'')}.pdf`;
+      : `Relatorio_${($('s-data').value||'').replace(/-/g,'')}.pdf`;
     const blob = doc.output('blob');
     if(compartilhar) await compartilharPDF(blob, nome);
     return {blob, nome};
@@ -1872,30 +1806,20 @@ function csvEscapa(v){
   const s = (v==null?'':String(v));
   return /[";\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
 }
-/* Uma linha por foto, com as dimensões digitadas em campo e o que o
-   carimbo capturou. É a planilha que alimenta a medição. */
+/* Uma linha por foto, com o que o carimbo capturou. */
 async function seqLinhas(){
   const furos = await seqFuros();
   const fotos = await dbGetAll('fotos');
-  const med = MED_ATUAL || {};
   const linhas = [];
   furos.forEach(f=>{
     ['antes','depois'].forEach(tipo=>{
       const fo = fotos.find(x=>x.furoUid===f.uid && x.tipo===tipo);
       const e = (fo && fo.endereco) || {};
       linhas.push({
-        'Medição': med.numero ? med.numero+'ª' : 'Avulso',
-        'Região': med.regiao||'', 'Lote': med.lote||'',
         'Data': fmtData(f.data), 'Equipe': f.equipe||'',
         'Furo': f.num, 'Foto': tipo==='antes'?'Antes':'Depois',
-        'Descrição': (fo&&fo.descricao)||'',
         'Bairro/Rua': f.rua||'', 'Bairro (carimbo)': e.bairro||'',
         'Serviço': f.servico||'',
-        'Largura (m)': (fo&&fo.largura!=null)?fo.largura:'',
-        'Comprimento (m)': (fo&&fo.comprimento!=null)?fo.comprimento:'',
-        'Espessura (cm)': (fo&&fo.espessura!=null)?fo.espessura:'',
-        'Área (m²)': (fo&&fo.area!=null)?fo.area:'',
-        'Volume (m³)': (fo&&fo.volume!=null)?fo.volume:'',
         'Latitude': (fo&&fo.lat!=null)?fo.lat:'',
         'Longitude': (fo&&fo.lng!=null)?fo.lng:'',
         'Direção': (fo&&fo.direcao)||'',
@@ -1914,8 +1838,7 @@ async function seqPlanilha(){
   try{
     const linhas = await seqLinhas();
     if(!linhas.length){ alerta('s-err','Não há furos lançados neste dia.'); return; }
-    const med = MED_ATUAL || {};
-    const base = `Planilha_${med.numero?med.numero+'a_Medicao':'Avulso'}_${($('s-data').value||'').replace(/-/g,'')}`;
+    const base = `Planilha_${($('s-data').value||'').replace(/-/g,'')}`;
     /* resumo por furo, que é o que vai para a medição */
     const porFuro = {};
     linhas.forEach(l=>{
@@ -2243,7 +2166,6 @@ async function novoRelatorioFotografico(){
   setTimeout(async ()=>{
     if(!$('s-data').value) $('s-data').value = hoje();
     if(ID.equipe && [...$('s-eq').options].some(o=>o.value===ID.equipe)) $('s-eq').value = ID.equipe;
-    await seqResolverMed();
     await relAtualDoDia(false);
     const furos = REL_ATUAL ? await relFuros(REL_ATUAL.uid) : [];
     if(!REL_ATUAL || REL_ATUAL.status === 'Concluído' || furos.length)
@@ -2270,9 +2192,8 @@ const REL_CLS = {'Validado':'s-ok','Devolvido':'s-rd','Pendente':'s-wn','Vazio':
 
 async function renderMeus(){
   try{
-    const [furos, rels, meds, fotos, imgs] = await Promise.all([
-      dbGetAll('furos'), dbGetAll('relatorios'), dbGetAll('medicoes'), dbGetAll('fotos'), dbGetAll('imagens')]);
-    const mapM = new Map(meds.map(m=>[m.uid,m]));
+    const [furos, rels, fotos, imgs] = await Promise.all([
+      dbGetAll('furos'), dbGetAll('relatorios'), dbGetAll('fotos'), dbGetAll('imagens')]);
     const mapI = new Map(imgs.map(i=>[i.fotoUid,i]));
     const meu = x => !ID.nome || !x.lancadoPor || x.lancadoPor===ID.nome || x.dispositivo===ID.dispositivo;
 
@@ -2292,7 +2213,7 @@ async function renderMeus(){
       const sit = relSituacao(fs, r);
       const devolvidos = fs.filter(f=>f.status==='Devolvido');
       const capas = fts.slice(0,2).map(x=>{ const im = mapI.get(x.uid); return (im&&im.carimbada) || x.url || ''; });
-      return {r, fs, sit, devolvidos, nFotos:fts.length, capas, med:mapM.get(r.medicaoUid)};
+      return {r, fs, sit, devolvidos, nFotos:fts.length, capas};
     }).sort((a,b)=>{
       const pa = a.sit==='Devolvido'?0:1, pb = b.sit==='Devolvido'?0:1;
       return pa-pb || String(b.r.data||'').localeCompare(String(a.r.data||'')) || (b.r.seq||0)-(a.r.seq||0);
@@ -2338,7 +2259,6 @@ async function renderMeus(){
           <div class="ln"><span>Furos / fotos</span><b>${l.fs.length}</b> furo(s) · <b>${l.nFotos}</b> foto(s)</div>
           <div class="ln"><span>Rua</span>${esc(r.rua || (l.fs[0]&&l.fs[0].rua) || '—')}</div>
           <div class="ln"><span>Serviço</span>${esc(r.servico || (l.fs[0]&&l.fs[0].servico) || '—')}</div>
-          <div class="ln"><span>Medição</span>${l.med?esc(l.med.numero+'ª · '+(l.med.regiao||'')):'avulso'}</div>
           <div class="ln"><span>Documento</span>${r.status==='Concluído'?'concluído e enviado':'em andamento'}</div>
           ${podeEditar?`
             <button class="btn sm" style="width:100%;margin-top:9px" onclick="abrirRelatorio('${r.uid}')">
