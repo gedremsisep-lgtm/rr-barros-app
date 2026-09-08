@@ -1,6 +1,6 @@
 {
   "systemVersion": "20260903-020",
   "exeVersion": "1.1.0",
-  "publicadoEm": "2026-09-03T15:00:00Z",
-  "notas": "Sem o modulo Medicoes. O sistema avisa sozinho quando sai versao nova."
+  "publicadoEm": "2026-09-08T14:18:15Z",
+  "notas": "Tela inicial do app sem os cartoes Enviar e Ajustes"
 }
