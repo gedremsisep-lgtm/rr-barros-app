@@ -416,7 +416,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20260903-019';
+const APP_VERSION = '20260903-021';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -2138,19 +2138,8 @@ async function inicioRender(){
           ver, editar e enviar correção</div></div>
       <div class="ac"><i class="ti ti-chevron-right"></i></div></div>`);
 
-    cartoes.push(`<div class="acard ${(r.aEnviar||r.fila)?'o':'g'}" onclick="ir('enviar')">
-      <div class="ai"><i class="ti ti-cloud-up"></i></div>
-      <div><div class="at">Enviar ao escritório</div>
-        <div class="as">${(r.aEnviar||r.fila)
-          ? `${r.aEnviar} foto(s) e ${r.fila} registro(s) esperando`
-          : 'tudo sincronizado'}</div></div>
-      <div class="ac"><i class="ti ti-chevron-right"></i></div></div>`);
-
-    cartoes.push(`<div class="acard n" onclick="ir('ajustes')">
-      <div class="ai"><i class="ti ti-settings"></i></div>
-      <div><div class="at">Ajustes</div>
-        <div class="as">Equipe, qualidade das fotos, localização e conta</div></div>
-      <div class="ac"><i class="ti ti-chevron-right"></i></div></div>`);
+    /* Enviar e Ajustes saíram daqui: continuam na barra de baixo, sempre à
+       mão. A tela inicial fica só com o que começa ou retoma o trabalho. */
 
     $('in-acoes').innerHTML = cartoes.join('');
   }catch(err){
