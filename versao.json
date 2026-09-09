@@ -3,6 +3,6 @@
   "apkVersionCode": 6,
   "apkVersionName": "1.5",
   "apkUrl": "https://gedremsisep-lgtm.github.io/rr-barros-app/RR-Barros.apk",
-  "publicadoEm": "2026-09-09T12:11:30Z",
-  "notas": "GPS e bussola ligam ao abrir o app; foto sem localizacao agora pergunta antes de salvar"
+  "publicadoEm": "2026-09-09T12:24:12Z",
+  "notas": "Impressao: endereco e coordenada da foto em faixa legivel sobre as imagens"
 }
