@@ -1,6 +1,6 @@
 {
-  "systemVersion": "20260909-021",
+  "systemVersion": "20260909-022",
   "exeVersion": "1.1.0",
-  "publicadoEm": "2026-09-09T12:24:12Z",
-  "notas": "Impressao: endereco e coordenada da foto em faixa legivel sobre as imagens"
+  "publicadoEm": "2026-09-09T12:32:38Z",
+  "notas": "Carimbo completo no rodape de cada foto impressa: data, hora, direcao, altitude, coordenada e endereco"
 }
