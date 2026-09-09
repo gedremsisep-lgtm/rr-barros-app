@@ -406,7 +406,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
     <div style="font-size:17px;font-weight:800;margin-bottom:6px" id="ov-tit"></div>
     <div style="font-size:14px;color:var(--text2);margin-bottom:16px" id="ov-msg"></div>
     <button class="btn d" id="ov-ok">Confirmar</button>
-    <button class="btn" style="margin-top:9px" onclick="document.getElementById('ov-conf').style.display='none'">Cancelar</button>
+    <button class="btn" id="ov-nao" style="margin-top:9px">Cancelar</button>
   </div>
 </div>
 
@@ -416,7 +416,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20260903-021';
+const APP_VERSION = '20260909-022';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -603,8 +603,27 @@ function limpa(...ids){ ids.forEach(i=>$(i)?.classList.remove('show')); }
 function confirmarSheet(tit,msg,cb){
   $('ov-tit').textContent=tit; $('ov-msg').innerHTML=msg;
   const b=$('ov-ok'), n=b.cloneNode(true); b.parentNode.replaceChild(n,b);
+  n.className='btn d'; n.textContent='Confirmar';
   n.onclick=()=>{ $('ov-conf').style.display='none'; cb(); };
+  const c=$('ov-nao'), m=c.cloneNode(true); c.parentNode.replaceChild(m,c);
+  m.textContent='Cancelar';
+  m.onclick=()=>{ $('ov-conf').style.display='none'; };
   $('ov-conf').style.display='flex';
+}
+/* Mesma folha, mas esperando a resposta: devolve true no botao de cima e
+   false no de baixo. Serve para decidir no meio de uma tarefa (por exemplo,
+   guardar ou nao uma foto que saiu sem localizacao). */
+function perguntaSheet(tit,msg,txtSim,txtNao){
+  return new Promise(res=>{
+    $('ov-tit').textContent=tit; $('ov-msg').innerHTML=msg;
+    const b=$('ov-ok'), n=b.cloneNode(true); b.parentNode.replaceChild(n,b);
+    n.textContent = txtSim; n.className = 'btn p';
+    const c=$('ov-nao'), m=c.cloneNode(true); c.parentNode.replaceChild(m,c);
+    m.textContent = txtNao;
+    n.onclick=()=>{ $('ov-conf').style.display='none'; res(true); };
+    m.onclick=()=>{ $('ov-conf').style.display='none'; res(false); };
+    $('ov-conf').style.display='flex';
+  });
 }
 function comprimir(file,maxW,q){
   return new Promise((res,rej)=>{
@@ -883,7 +902,10 @@ function setSel(id,html){ const el=$(id); if(!el)return; const a=el.value; el.in
 /* ====================================================================== */
 let HEADING = null;
 
+let BUSSOLA_LIGADA = false;
 function iniciarBussola(){
+  if(BUSSOLA_LIGADA) return;          /* uma escuta só: senão empilha a cada toque */
+  BUSSOLA_LIGADA = true;
   const trata = e=>{
     let g = null;
     if(typeof e.webkitCompassHeading === 'number') g = e.webkitCompassHeading;
@@ -908,6 +930,13 @@ function grausTxt(g){ return (g == null) ? '' : `${Math.round(g)}° ${cardinal(g
 let GPS_ULTIMO = null, GPS_ERRO = null, GPS_WATCH = null, GPS_LIGANDO = false;
 
 function gpsDePos(p){
+  /* Alguns aparelhos nao entregam a bussola para a pagina, mas mandam a
+     direcao do deslocamento junto com a posicao. Quando a bussola esta muda,
+     essa direcao ja e melhor do que carimbo nenhum. */
+  if(HEADING == null && p.coords.heading != null && isFinite(p.coords.heading)
+     && p.coords.speed != null && p.coords.speed > 0.6){
+    HEADING = (p.coords.heading + 360) % 360;
+  }
   return {lat:p.coords.latitude, lng:p.coords.longitude,
           alt:(p.coords.altitude!=null?Math.round(p.coords.altitude):null),
           prec:(p.coords.accuracy!=null?Math.round(p.coords.accuracy):null),
@@ -1019,7 +1048,11 @@ function pintarGPS(){
 /* Precisa nascer de um toque: é a única forma de o iPhone liberar a bússola. */
 async function ativarGPS(porToque){
   GPS_ERRO = null;
-  if(porToque) pedirBussola();
+  /* A bussola tem de ser ligada sempre, nao so no toque: era por isso que
+     todas as fotos saiam sem a direcao. No iPhone o pedido de permissao so
+     vale se nascer de um toque — la o toque na barra continua sendo o
+     caminho, e a chamada sem toque apenas nao faz efeito. */
+  pedirBussola();
   if(!window.isSecureContext || !navigator.geolocation){ pintarGPS(); if(porToque) abrirAjudaGPS(); return; }
   await lerPermissaoGPS();
   if(GPS_PERM === 'denied'){
@@ -1038,19 +1071,30 @@ async function ativarGPS(porToque){
 }
 /* Na hora da foto: usa a posição recente do rastreio; se não houver,
    pede uma na hora, e ainda tenta em baixa precisão antes de desistir. */
-function gpsAgora(){
+function gpsAgora(espera){
+  /* Voltando da camera o aparelho costuma demorar a devolver o primeiro
+     ponto. Por isso a espera e generosa: e melhor a foto sair dois segundos
+     depois, com a localizacao, do que sair na hora sem ela. */
+  const teto = espera || 20000;
   if(GPS_ULTIMO && (Date.now()-GPS_ULTIMO.quando) < 25000) return Promise.resolve(GPS_ULTIMO);
   return new Promise(res=>{
     if(!window.isSecureContext || !navigator.geolocation){ pintarGPS(); return res(null); }
+    /* O rastreio continua correndo em paralelo: se ele chegar primeiro, vale. */
+    let pronto = false;
+    const entregar = g=>{ if(pronto) return; pronto = true; pintarGPS(); res(g); };
+    const relogio = setInterval(()=>{
+      if(GPS_ULTIMO && (Date.now()-GPS_ULTIMO.quando) < 25000){ clearInterval(relogio); entregar(GPS_ULTIMO); }
+    }, 700);
+    const fim = ()=>{ clearInterval(relogio); };
     navigator.geolocation.getCurrentPosition(
-      p=>{ GPS_ULTIMO = gpsDePos(p); GPS_ERRO = null; pintarGPS(); res(GPS_ULTIMO); },
+      p=>{ GPS_ULTIMO = gpsDePos(p); GPS_ERRO = null; fim(); entregar(GPS_ULTIMO); },
       ()=>{
         navigator.geolocation.getCurrentPosition(
-          p=>{ GPS_ULTIMO = gpsDePos(p); GPS_ERRO = null; pintarGPS(); res(GPS_ULTIMO); },
-          e=>{ GPS_ERRO = e; pintarGPS(); res(null); },
-          {enableHighAccuracy:false, timeout:12000, maximumAge:60000});
+          p=>{ GPS_ULTIMO = gpsDePos(p); GPS_ERRO = null; fim(); entregar(GPS_ULTIMO); },
+          e=>{ GPS_ERRO = e; fim(); entregar(GPS_ULTIMO && (Date.now()-GPS_ULTIMO.quando)<120000 ? GPS_ULTIMO : null); },
+          {enableHighAccuracy:false, timeout:teto, maximumAge:60000});
       },
-      {enableHighAccuracy:true, timeout:12000, maximumAge:5000});
+      {enableHighAccuracy:true, timeout:teto, maximumAge:5000});
   });
 }
 function grausMinSeg(v, eixo){
@@ -1432,7 +1476,31 @@ async function seqRecebeuFoto(input){
   seqMarcarOcupado(furoUid, tipo, 'Processando...');
   try{
     const original = await comprimir(arq, ID.qualidade||1000, 0.7);
-    const gps = await gpsAgora();
+    seqMarcarOcupado(furoUid, tipo, 'Pegando a localização...');
+    let gps = await gpsAgora(20000);
+    /* Sem ponto na primeira tentativa: o relatório vale muito menos sem
+       coordenada, então o app insiste uma vez e, se ainda assim não vier,
+       pergunta em vez de guardar caladamente uma foto sem localização. */
+    if(!gps){
+      ativarGPS(false);
+      seqMarcarOcupado(furoUid, tipo, 'Procurando o sinal...');
+      gps = await gpsAgora(25000);
+    }
+    if(!gps){
+      const prob0 = gpsMotivo();
+      const seguir = await perguntaSheet(
+        'Esta foto vai sair sem localização',
+        `${prob0?prob0.t:'O GPS não respondeu a tempo.'}<br><br>
+         Saia de baixo de laje ou cobertura, confira se a <b>Localização</b> do celular
+         está ligada e tente de novo. Sem coordenada o relatório perde valor de prova.`,
+        'Tentar pegar a localização', 'Guardar assim mesmo');
+      if(seguir){
+        ativarGPS(false);
+        seqMarcarOcupado(furoUid, tipo, 'Procurando o sinal...');
+        gps = await gpsAgora(30000);
+      }
+    }
+    seqMarcarOcupado(furoUid, tipo, 'Processando...');
     const meta = {
       dataHora:new Date().toISOString(),
       lat:gps&&gps.lat, lng:gps&&gps.lng, alt:gps&&gps.alt, precisao:gps&&gps.prec,
@@ -2340,7 +2408,16 @@ async function baixarRelatorio(uid){
     await restaurarSessao();
     await relMigrar();
     await preencherListas();
-    lerPermissaoGPS().then(()=>pintarGPS());
+    /* O GPS e a bússola começam a trabalhar assim que o app abre, e não só
+       quando alguém entra na tela de fotos. Achar o primeiro ponto pode levar
+       meio minuto a céu aberto; deixando ligado desde o começo, a foto já
+       encontra a posição pronta. */
+    lerPermissaoGPS().then(()=>{ pintarGPS(); ativarGPS(false); });
+    /* Voltando da câmera (ou do bolso) o rastreio costuma ficar dormindo:
+       aqui ele é reacordado. */
+    document.addEventListener('visibilitychange', ()=>{
+      if(!document.hidden) ativarGPS(false);
+    });
     /* pelo navegador o próprio app se compara com a versão publicada; no
        aplicativo instalado quem faz isso é a casca, logo ao abrir */
     if(!noAplicativo() && navigator.onLine) setTimeout(()=>{
