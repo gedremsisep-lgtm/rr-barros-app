@@ -416,7 +416,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20260909-022';
+const APP_VERSION = '20260911-023';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -1297,6 +1297,26 @@ async function relDoDia(data, equipe){
   return todos.filter(r=>r.data===data && (r.equipe||'')===(equipe||'') && !r.deletado)
               .sort((a,b)=>(a.seq||0)-(b.seq||0));
 }
+/* Relatório do dia/equipe que ainda tem furo esperando a foto do DEPOIS.
+   A turma fotografa o ANTES de tudo, conclui, manda pelo WhatsApp, e volta
+   mais tarde para o DEPOIS. Se nessa volta o app abrisse um relatório novo,
+   as fotos do depois virariam furos novos (1, 2, 3...) em vez de completar os
+   furos que já existem — e o documento sairia com "sem foto" no lugar de cada
+   depois. Por isso o app procura primeiro quem está pela metade. */
+async function relComPendencia(data, equipe){
+  const lista = await relDoDia(data, equipe);
+  if(!lista.length) return null;
+  const furos = await dbGetAll('furos');
+  const fotos = await dbGetAll('fotos');
+  const temDepois = new Set(fotos.filter(f=>f.tipo==='depois').map(f=>f.furoUid));
+  const temAntes  = new Set(fotos.filter(f=>f.tipo==='antes').map(f=>f.furoUid));
+  for(const r of lista){
+    const dele = furos.filter(f=>f.relatorioUid===r.uid);
+    const faltando = dele.filter(f=>temAntes.has(f.uid) && !temDepois.has(f.uid));
+    if(faltando.length) return {rel:r, faltando:faltando.length, total:dele.length};
+  }
+  return null;
+}
 /* Acha o relatório aberto do dia/equipe; cria quando for preciso. */
 async function relAtualDoDia(criar){
   const data = $('s-data').value, equipe = $('s-eq').value || ID.equipe || '';
@@ -1308,6 +1328,18 @@ async function relAtualDoDia(criar){
   }
   const aberto = lista.filter(r=>r.status!=='Concluído').pop();
   if(aberto) return (REL_ATUAL = aberto);
+  /* Todos concluídos, mas algum ainda espera o DEPOIS: retoma aquele. */
+  const pend = await relComPendencia(data, equipe);
+  if(pend){
+    await relGravar(pend.rel.uid, {status:'Aberto'});
+    const atual = (await relDoDia(data, equipe)).find(r=>r.uid===pend.rel.uid) || pend.rel;
+    REL_ATUAL = atual;
+    alerta('s-aviso', `Retomando o relatório <b>${esc(relCod(atual))}</b>: ele tem
+      <b>${pend.faltando}</b> furo(s) esperando a foto do <b>Depois</b>.
+      Toque no quadro vazio de cada furo — não precisa lançar furo novo.
+      Se o serviço for outro, use <b>Gerar novo relatório</b>.`, 0);
+    return atual;
+  }
   const ultimo = lista[lista.length-1];
   if(ultimo && !criar) return (REL_ATUAL = ultimo);
   if(!criar) return (REL_ATUAL = null);
@@ -1693,6 +1725,27 @@ async function seqNovoRelatorio(){
   limpa('s-err','s-ok','s-aviso');
   const data = $('s-data').value, equipe = $('s-eq').value || ID.equipe || '';
   if(!data){ alerta('s-err','Informe a data do serviço.'); return; }
+  /* Abrir documento novo quando ainda falta o depois é o erro que embaralha o
+     relatório do escritório. Aqui ele é avisado antes, não depois. */
+  const pend = await relComPendencia(data, equipe);
+  if(pend){
+    const seguir = await perguntaSheet(
+      'Ainda falta a foto do Depois',
+      `O relatório <b>${esc(relCod(pend.rel))}</b> tem <b>${pend.faltando}</b> furo(s)
+       esperando a foto do <b>Depois</b>.<br><br>
+       Se você veio fotografar o depois desses furos, <b>retome aquele relatório</b>:
+       as fotos entram ao lado das do antes. Abrindo um documento novo, elas viram
+       furos novos e o escritório recebe o relatório quebrado.`,
+      'Retomar ' + relCod(pend.rel), 'Abrir documento novo mesmo assim');
+    if(seguir){
+      await relGravar(pend.rel.uid, {status:'Aberto'});
+      REL_ATUAL = (await relDoDia(data, equipe)).find(r=>r.uid===pend.rel.uid) || pend.rel;
+      await seqRender();
+      alerta('s-ok','Relatório <b>'+esc(relCod(REL_ATUAL))+'</b> retomado. Toque no quadro vazio de cada furo para a foto do Depois.',0);
+      window.scrollTo({top:0, behavior:'smooth'});
+      return;
+    }
+  }
   await relCriar(data, equipe);
   await seqRender();
   alerta('s-ok','Relatório <b>'+esc(relCod(REL_ATUAL))+'</b> aberto. Adicione os furos deste novo documento.');
