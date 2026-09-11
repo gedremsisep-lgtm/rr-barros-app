@@ -416,7 +416,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20260911-023';
+const APP_VERSION = '20260911-024';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -1297,13 +1297,13 @@ async function relDoDia(data, equipe){
   return todos.filter(r=>r.data===data && (r.equipe||'')===(equipe||'') && !r.deletado)
               .sort((a,b)=>(a.seq||0)-(b.seq||0));
 }
-/* Relatório do dia/equipe que ainda tem furo esperando a foto do DEPOIS.
-   A turma fotografa o ANTES de tudo, conclui, manda pelo WhatsApp, e volta
-   mais tarde para o DEPOIS. Se nessa volta o app abrisse um relatório novo,
-   as fotos do depois virariam furos novos (1, 2, 3...) em vez de completar os
-   furos que já existem — e o documento sairia com "sem foto" no lugar de cada
-   depois. Por isso o app procura primeiro quem está pela metade. */
-async function relComPendencia(data, equipe){
+/* Relatório do dia/equipe que o escritório ainda NÃO validou.
+   Enquanto o documento anterior não é conferido e validado, o app não abre
+   outro: era abrindo documento novo que as fotos do DEPOIS viravam furos
+   novos (1, 2, 3...) em vez de completar os furos do ANTES, e o escritório
+   recebia o relatório quebrado. Um documento por vez, fechado pela
+   validação — depois disso o próximo pode começar. */
+async function relNaoValidado(data, equipe){
   const lista = await relDoDia(data, equipe);
   if(!lista.length) return null;
   const furos = await dbGetAll('furos');
@@ -1312,10 +1312,26 @@ async function relComPendencia(data, equipe){
   const temAntes  = new Set(fotos.filter(f=>f.tipo==='antes').map(f=>f.furoUid));
   for(const r of lista){
     const dele = furos.filter(f=>f.relatorioUid===r.uid);
-    const faltando = dele.filter(f=>temAntes.has(f.uid) && !temDepois.has(f.uid));
-    if(faltando.length) return {rel:r, faltando:faltando.length, total:dele.length};
+    if(!dele.length) continue;                       /* documento vazio não tranca */
+    const sit = relSituacao(dele, r);
+    if(sit === 'Validado') continue;                 /* esse já está fechado */
+    return {
+      rel: r, situacao: sit, total: dele.length,
+      pendentes: dele.filter(f=>f.status!=='Validado').length,
+      devolvidos: dele.filter(f=>f.status==='Devolvido').length,
+      semDepois: dele.filter(f=>temAntes.has(f.uid) && !temDepois.has(f.uid)).length
+    };
   }
   return null;
+}
+/* O que a tela diz sobre o documento que está trancando a abertura de outro. */
+function relPorqueTrancado(p){
+  const partes = [];
+  if(p.semDepois)  partes.push(`<b>${p.semDepois}</b> furo(s) ainda esperando a foto do <b>Depois</b>`);
+  if(p.devolvidos) partes.push(`<b>${p.devolvidos}</b> furo(s) <b>devolvidos para correção</b>`);
+  const val = p.total - p.pendentes;
+  partes.push(`<b>${val}</b> de <b>${p.total}</b> furo(s) validados pelo escritório`);
+  return partes.join(' · ');
 }
 /* Acha o relatório aberto do dia/equipe; cria quando for preciso. */
 async function relAtualDoDia(criar){
@@ -1328,16 +1344,17 @@ async function relAtualDoDia(criar){
   }
   const aberto = lista.filter(r=>r.status!=='Concluído').pop();
   if(aberto) return (REL_ATUAL = aberto);
-  /* Todos concluídos, mas algum ainda espera o DEPOIS: retoma aquele. */
-  const pend = await relComPendencia(data, equipe);
+  /* Todos concluídos, mas o escritório ainda não validou: retoma aquele.
+     Só depois da validação é que um documento novo pode ser aberto. */
+  const pend = await relNaoValidado(data, equipe);
   if(pend){
     await relGravar(pend.rel.uid, {status:'Aberto'});
     const atual = (await relDoDia(data, equipe)).find(r=>r.uid===pend.rel.uid) || pend.rel;
     REL_ATUAL = atual;
-    alerta('s-aviso', `Retomando o relatório <b>${esc(relCod(atual))}</b>: ele tem
-      <b>${pend.faltando}</b> furo(s) esperando a foto do <b>Depois</b>.
-      Toque no quadro vazio de cada furo — não precisa lançar furo novo.
-      Se o serviço for outro, use <b>Gerar novo relatório</b>.`, 0);
+    alerta('s-aviso', `Retomando o relatório <b>${esc(relCod(atual))}</b> — ele ainda não foi
+      validado pelo escritório: ${relPorqueTrancado(pend)}.
+      ${pend.semDepois ? 'Toque no quadro vazio de cada furo para a foto do <b>Depois</b>. ' : ''}
+      O próximo documento só abre depois que este for validado.`, 0);
     return atual;
   }
   const ultimo = lista[lista.length-1];
@@ -1725,26 +1742,21 @@ async function seqNovoRelatorio(){
   limpa('s-err','s-ok','s-aviso');
   const data = $('s-data').value, equipe = $('s-eq').value || ID.equipe || '';
   if(!data){ alerta('s-err','Informe a data do serviço.'); return; }
-  /* Abrir documento novo quando ainda falta o depois é o erro que embaralha o
-     relatório do escritório. Aqui ele é avisado antes, não depois. */
-  const pend = await relComPendencia(data, equipe);
+  /* Documento novo só depois que o anterior for validado pelo escritório.
+     Foi abrindo documento novo com o anterior pela metade que as fotos do
+     DEPOIS viraram furos soltos. Aqui não é aviso: é a regra. */
+  const pend = await relNaoValidado(data, equipe);
   if(pend){
-    const seguir = await perguntaSheet(
-      'Ainda falta a foto do Depois',
-      `O relatório <b>${esc(relCod(pend.rel))}</b> tem <b>${pend.faltando}</b> furo(s)
-       esperando a foto do <b>Depois</b>.<br><br>
-       Se você veio fotografar o depois desses furos, <b>retome aquele relatório</b>:
-       as fotos entram ao lado das do antes. Abrindo um documento novo, elas viram
-       furos novos e o escritório recebe o relatório quebrado.`,
-      'Retomar ' + relCod(pend.rel), 'Abrir documento novo mesmo assim');
-    if(seguir){
-      await relGravar(pend.rel.uid, {status:'Aberto'});
-      REL_ATUAL = (await relDoDia(data, equipe)).find(r=>r.uid===pend.rel.uid) || pend.rel;
-      await seqRender();
-      alerta('s-ok','Relatório <b>'+esc(relCod(REL_ATUAL))+'</b> retomado. Toque no quadro vazio de cada furo para a foto do Depois.',0);
-      window.scrollTo({top:0, behavior:'smooth'});
-      return;
-    }
+    await relGravar(pend.rel.uid, {status:'Aberto'});
+    REL_ATUAL = (await relDoDia(data, equipe)).find(r=>r.uid===pend.rel.uid) || pend.rel;
+    await seqRender();
+    alerta('s-err', `Ainda não dá para abrir documento novo: o relatório
+      <b>${esc(relCod(REL_ATUAL))}</b> não foi validado pelo escritório.
+      ${relPorqueTrancado(pend)}.<br>
+      Continue neste mesmo documento${pend.semDepois ? ' — toque no quadro vazio de cada furo para a foto do <b>Depois</b>' : ''}.
+      Assim que o escritório validar, o próximo abre.`, 0);
+    window.scrollTo({top:0, behavior:'smooth'});
+    return;
   }
   await relCriar(data, equipe);
   await seqRender();
