@@ -1,6 +1,6 @@
 {
-  "systemVersion": "20260914-031",
+  "systemVersion": "20260914-032",
   "exeVersion": "1.1.0",
-  "publicadoEm": "2026-09-14T14:33:23Z",
-  "notas": "Galeria: baixar e excluir foto a foto e o dia inteiro da equipe"
+  "publicadoEm": "2026-09-14T14:51:42Z",
+  "notas": "Editar abre no formato do documento: arrastar a foto entre quadros e apagar a que nao serve"
 }
