@@ -416,7 +416,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20260911-024';
+const APP_VERSION = '20260918-025';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -1253,6 +1253,16 @@ function stCaminho(fo){
   const rel = String(fo.relatorioUid || 'sem-relatorio').slice(-16);
   return `${rel}/furo-${String(fo.furoNum).padStart(3,'0')}-${fo.tipo}.jpg`;
 }
+/* Miniatura: a mesma foto carimbada, mas estreita. É ela que o escritório
+   mostra na lista, na galeria e no documento — onde a foto sai com poucos
+   centímetros e ninguém precisa dos 1000 pixels. Pesa perto de um décimo da
+   original, e é o que segura a conta de tráfego da nuvem: um dia de trabalho
+   tem mil fotos, e cada vez que alguém abre o relatório elas descem de novo. */
+function stCaminhoMini(fo){
+  const rel = String(fo.relatorioUid || 'sem-relatorio').slice(-16);
+  return `${rel}/furo-${String(fo.furoNum).padStart(3,'0')}-${fo.tipo}-mini.jpg`;
+}
+const MINI_LARGURA = 480;   /* a 47 mm no papel dá ~260 pontos por polegada */
 function stUrlPublica(caminho){
   return (SYNC.url||'').replace(/\/+$/,'') + '/storage/v1/object/public/' + BUCKET + '/' + caminho;
 }
@@ -1262,6 +1272,24 @@ function dataUrlParaBlob(d){
   const bin = atob(b64), arr = new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
   return new Blob([arr], {type:tipo});
+}
+/* Reduz uma imagem já pronta (data URL) sem passar de novo pelo arquivo. */
+function encolher(dataUrl, larguraMax, q){
+  return new Promise((res, rej)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      let w = img.width, h = img.height;
+      if(w > larguraMax){ h = Math.round(h*larguraMax/w); w = larguraMax; }
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const cx = cv.getContext('2d');
+      cx.fillStyle = '#fff'; cx.fillRect(0,0,w,h);
+      cx.drawImage(img, 0, 0, w, h);
+      res(cv.toDataURL('image/jpeg', q || 0.66));
+    };
+    img.onerror = ()=>rej(new Error('imagem inválida'));
+    img.src = dataUrl;
+  });
 }
 async function stEnviar(caminho, dataUrl){
   const r = await fetch((SYNC.url||'').replace(/\/+$/,'')+'/storage/v1/object/'+BUCKET+'/'+caminho, {
@@ -1810,7 +1838,15 @@ async function seqEnviarFotos(silencioso){
         }catch(e){ console.warn('endereço adiado', e); }
       }
       const url = await stEnviar(fo.arquivo || stCaminho(fo), carimbada);
-      await dbPut('fotos', {...fo, enviada:true, url, enviadaEm:new Date().toISOString()});
+      /* A miniatura viaja junto. Se falhar, a foto já está lá — o escritório
+         só vai gastar um pouco mais para mostrá-la. */
+      let urlMini = '', arquivoMini = '';
+      try{
+        arquivoMini = stCaminhoMini(fo);
+        urlMini = await stEnviar(arquivoMini, await encolher(carimbada, MINI_LARGURA, 0.66));
+      }catch(e){ console.warn('sem miniatura', e); urlMini = ''; arquivoMini = ''; }
+      await dbPut('fotos', {...fo, enviada:true, url, urlMini, arquivoMini,
+        enviadaEm:new Date().toISOString()});
       /* libera espaço: o original não é mais necessário depois do envio */
       const im2 = (await dbGetAll('imagens')).find(x=>x.fotoUid===fo.uid);
       if(im2) await _rawPut('imagens', {...im2, original:null});
