@@ -416,7 +416,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20260918-025';
+const APP_VERSION = '20260923-027';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -433,25 +433,74 @@ const NUVEM = {
 };
 
 /* ------------------------------- BANCO ---------------------------------- */
-const DB_NAME='RRBARROS_APP', DB_VERSION=5;   /* bump obrigatorio ao somar store */
-const STORES=['furos','relatorios','equipes','servicos','historico','dispositivos','usuarios','fotos','imagens'];
-/* 'imagens' guarda os bytes das fotos e NUNCA sobe pela tabela: as imagens vao para o Storage. */
+const DB_NAME='RRBARROS_APP', DB_VERSION=6;   /* bump obrigatorio ao somar store */
+const STORES=['furos','relatorios','equipes','servicos','historico','dispositivos','usuarios','fotos','imagens','minis'];
+/* 'imagens' guarda os bytes das fotos e NUNCA sobe pela tabela: as imagens vao para o Storage.
+   'minis' guarda so a miniatura de tela (uns 20 KB) e tambem fica no aparelho. */
 const SYNC_STORES=['furos','relatorios','equipes','servicos','historico','dispositivos','usuarios','fotos'];
 const BUCKET='fotos';
 let db=null;
 
+/* Atalhos de busca. Sem eles, achar a imagem de UMA foto obrigava o aparelho a
+   carregar TODAS as fotos guardadas para a memoria — era isso que fazia o app
+   ficar pesado conforme o dia enchia de furos. */
+const INDICES = {
+  imagens:  [['fotoUid','fotoUid']],
+  minis:    [['fotoUid','fotoUid']],
+  fotos:    [['furoUid','furoUid']],
+  furos:    [['relatorioUid','relatorioUid']]
+};
 function initDB(){
   return new Promise((res,rej)=>{
     const req=indexedDB.open(DB_NAME,DB_VERSION);
     req.onupgradeneeded=e=>{
-      const d=e.target.result;
+      const d=e.target.result, tx=e.target.transaction;
       STORES.forEach(s=>{ if(!d.objectStoreNames.contains(s)) d.createObjectStore(s,{keyPath:'id',autoIncrement:true}); });
+      Object.keys(INDICES).forEach(s=>{
+        try{
+          const os = tx.objectStore(s);
+          INDICES[s].forEach(([nome,campo])=>{
+            if(!os.indexNames.contains(nome)) os.createIndex(nome, campo, {unique:false});
+          });
+        }catch(err){ console.warn('indice', s, err); }
+      });
     };
     req.onsuccess=e=>{db=e.target.result;res(db)};
     req.onerror=e=>rej(e.target.error);
   });
 }
 function dbGetAll(s){return new Promise((res,rej)=>{try{const r=db.transaction(s,'readonly').objectStore(s).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)}catch(e){rej(e)}})}
+/* Busca direta pelo atalho: traz so as linhas daquele uid. */
+function dbPorIndice(s, idx, valor){return new Promise((res,rej)=>{try{
+  const r=db.transaction(s,'readonly').objectStore(s).index(idx).getAll(valor);
+  r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)}catch(e){rej(e)}})}
+async function dbUm(s, idx, valor){ try{ const l = await dbPorIndice(s, idx, valor); return l[0] || null; }
+  catch(e){ console.warn('indice indisponivel em '+s, e); const t=(await dbGetAll(s)).find(x=>x[idx]===valor); return t||null; } }
+/* As fotos de vários furos de uma vez só. Perguntar furo por furo seria uma
+   viagem ao banco para cada um; aqui vai tudo numa transação. O vínculo usado
+   é o do furo, que TODA foto tem — inclusive as antigas, de antes dos
+   relatórios existirem. */
+function fotosDosFuros(uids){
+  return new Promise((res,rej)=>{
+    if(!uids.length) return res([]);
+    try{
+      const idx = db.transaction('fotos','readonly').objectStore('fotos').index('furoUid');
+      const saida = []; let faltam = uids.length;
+      uids.forEach(u=>{
+        const q = idx.getAll(u);
+        const fim = ()=>{ if(--faltam === 0) res(saida); };
+        q.onsuccess = ()=>{ saida.push(...(q.result||[])); fim(); };
+        q.onerror   = fim;
+      });
+    }catch(e){ rej(e); }
+  });
+}
+async function fotosDe(furos){
+  const uids = furos.map(f=>f.uid);
+  try{ return await fotosDosFuros(uids); }
+  catch(e){ console.warn('sem atalho em fotos', e);
+    const set = new Set(uids); return (await dbGetAll('fotos')).filter(x=>set.has(x.furoUid)); }
+}
 function _rawAdd(s,r){return new Promise((res,rej)=>{const q=db.transaction(s,'readwrite').objectStore(s).add(r);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
 function _rawPut(s,r){return new Promise((res,rej)=>{const q=db.transaction(s,'readwrite').objectStore(s).put(r);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
 function _rawDel(s,i){return new Promise((res,rej)=>{const q=db.transaction(s,'readwrite').objectStore(s).delete(i);q.onsuccess=()=>res(1);q.onerror=()=>rej(q.error)})}
@@ -625,18 +674,52 @@ function perguntaSheet(tit,msg,txtSim,txtNao){
     $('ov-conf').style.display='flex';
   });
 }
-function comprimir(file,maxW,q){
-  return new Promise((res,rej)=>{
-    const fr=new FileReader();
-    fr.onload=()=>{ const img=new Image();
-      img.onload=()=>{ let w=img.width,h=img.height;
-        if(w>maxW){h=Math.round(h*maxW/w);w=maxW}
-        const cv=document.createElement('canvas');cv.width=w;cv.height=h;
-        const cx=cv.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,w,h);cx.drawImage(img,0,0,w,h);
-        res(cv.toDataURL('image/jpeg',q||0.66)); };
-      img.onerror=()=>rej(new Error('Imagem inválida')); img.src=fr.result; };
-    fr.onerror=()=>rej(new Error('Falha ao ler o arquivo')); fr.readAsDataURL(file);
+/* Nenhuma espera de internet pode passar disso. Sem teto, um pedido que a
+   operadora engole deixa o campo olhando "Processando..." sem fim. */
+function comTempo(promessa, ms, oQue){
+  let t;
+  return Promise.race([
+    promessa.finally(()=>clearTimeout(t)),
+    new Promise((_,rej)=>{ t = setTimeout(()=>rej(new Error('tempo esgotado: '+(oQue||''))), ms); })
+  ]);
+}
+
+/* ---- abrir a foto da câmera ------------------------------------------------
+   A câmera do celular entrega um arquivo de 12 megapixels, uns 5 MB. O caminho
+   antigo transformava esse arquivo inteiro em texto (base64, uns 7 MB), montava
+   uma imagem de 12 MP na memória e só então reduzia. Em aparelho fraco isso
+   sozinho passava de meio minuto e às vezes estourava a memória.
+   `createImageBitmap` recebe o arquivo direto e já devolve reduzido — o
+   navegador decodifica em escala menor, fora da linha principal. */
+async function abrirFoto(file, maxW){
+  if(window.createImageBitmap){
+    try{
+      return await createImageBitmap(file, {
+        resizeWidth: maxW, resizeQuality: 'medium', imageOrientation: 'from-image'
+      });
+    }catch(e){ console.warn('atalho de imagem indisponivel', e); }
+  }
+  /* aparelho antigo: caminho de sempre */
+  const url = await new Promise((res,rej)=>{
+    const fr = new FileReader();
+    fr.onload = ()=>res(fr.result);
+    fr.onerror = ()=>rej(new Error('Falha ao ler o arquivo'));
+    fr.readAsDataURL(file);
   });
+  return await carregarImg(url);
+}
+/* Desenha uma vez e devolve a tela pronta, no tamanho de trabalho. */
+function telaDe(img, maxW){
+  let w = img.width, h = img.height;
+  if(maxW && w > maxW){ h = Math.round(h*maxW/w); w = maxW; }
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#fff'; cx.fillRect(0,0,w,h);
+  cx.drawImage(img, 0, 0, w, h);
+  return cv;
+}
+function comprimir(file,maxW,q){
+  return abrirFoto(file, maxW).then(img=>telaDe(img, maxW).toDataURL('image/jpeg', q||0.66));
 }
 
 /* ---------------------------- SINCRONIZAÇÃO ----------------------------- */
@@ -1113,6 +1196,18 @@ function dataCarimbo(iso){
 
 /* Endereço pelo OpenStreetMap, com cache por coordenada arredondada e
    um pedido por vez — a política do serviço não permite rajadas. */
+/* O que já foi consultado antes não volta à internet. Num mesmo serviço a
+   equipe fica na mesma quadra o dia inteiro, então quase toda foto depois da
+   primeira acha o endereço aqui, na hora, sem rede. */
+function enderecoDoCache(lat,lng){
+  try{
+    const cache = JSON.parse(localStorage.getItem('rrbapp_end')||'{}');
+    return cache[lat.toFixed(4)+','+lng.toFixed(4)] || null;
+  }catch(e){ return null; }
+}
+function mapaDoCache(lat,lng){
+  return (window._tiles && window._tiles[lat.toFixed(3)+','+lng.toFixed(3)]) || null;
+}
 async function buscarEndereco(lat,lng){
   const chave = lat.toFixed(4)+','+lng.toFixed(4);
   let cache = {};
@@ -1121,7 +1216,9 @@ async function buscarEndereco(lat,lng){
   const espera = Math.max(0, 1300 - (Date.now() - (window._ultGeo||0)));
   if(espera) await new Promise(r=>setTimeout(r, espera));
   window._ultGeo = Date.now();
-  const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&accept-language=pt-BR&lat=${lat}&lon=${lng}`);
+  const r = await comTempo(
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&accept-language=pt-BR&lat=${lat}&lon=${lng}`),
+    8000, 'endereço');
   if(!r.ok) throw new Error('Endereço HTTP '+r.status);
   const j = await r.json(), a = j.address || {};
   const end = {
@@ -1156,7 +1253,8 @@ async function miniMapa(lat,lng){
   if(!window._tiles) window._tiles = {};
   if(window._tiles[chave]) return window._tiles[chave];
   const t = tileXY(lat,lng,16);
-  const img = await carregarImg(`https://tile.openstreetmap.org/${t.z}/${t.x}/${t.y}.png`, true);
+  const img = await comTempo(
+    carregarImg(`https://tile.openstreetmap.org/${t.z}/${t.x}/${t.y}.png`, true), 7000, 'mapa');
   const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
   const cx = cv.getContext('2d'); cx.drawImage(img,0,0);
   /* alfinete no centro do quadro */
@@ -1168,8 +1266,11 @@ async function miniMapa(lat,lng){
 }
 
 /* Desenha o carimbo por cima da foto: bússola, mapa e o bloco de dados. */
-async function carimbar(dataUrl, m){
-  const img = await carregarImg(dataUrl);
+/* `fonte` pode ser o endereço da imagem (texto) ou a imagem já aberta. Receber
+   ela já aberta evita decodificar a mesma foto duas vezes — era um decode
+   inteiro de brinde em cada foto tirada. */
+async function carimbar(fonte, m){
+  const img = (typeof fonte === 'string') ? await carregarImg(fonte) : fonte;
   const W = img.width, H = img.height;
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const cx = cv.getContext('2d');
@@ -1290,6 +1391,50 @@ function encolher(dataUrl, larguraMax, q){
     img.onerror = ()=>rej(new Error('imagem inválida'));
     img.src = dataUrl;
   });
+}
+
+/* ---- miniatura de tela ----------------------------------------------------
+   O quadradinho da lista tem uns 150 pixels de largura. Mostrar ali a foto
+   inteira obrigava o celular a abrir e desenhar uma imagem de 1600 pixels para
+   cada quadro — vinte furos viravam quarenta imagens grandes abertas ao mesmo
+   tempo, e o aparelho engasgava. A miniatura pesa perto de 20 KB e é ela que
+   aparece na tela. A foto inteira continua guardada e é ela que é enviada. */
+const TELA_LARGURA = 320;
+const PDF_LARGURA  = 1100;  /* no relatório do campo a foto sai com 47 mm */
+async function miniGravar(fotoUid, fonte){
+  try{
+    const mini = await encolher(fonte, TELA_LARGURA, 0.6);
+    const antiga = await dbUm('minis','fotoUid',fotoUid);
+    if(antiga) await _rawPut('minis', {...antiga, mini});
+    else       await _rawAdd('minis', {fotoUid, mini});
+    return mini;
+  }catch(e){ console.warn('sem miniatura de tela', e); return ''; }
+}
+async function miniApagar(fotoUid){
+  try{ const m = await dbUm('minis','fotoUid',fotoUid); if(m) await _rawDel('minis', m.id); }
+  catch(e){ console.warn(e); }
+}
+/* Fotos tiradas antes desta versão não têm miniatura. Elas são criadas de
+   fundo, poucas por vez, sem travar a tela. */
+const MINI_SEM_FONTE = new Set();
+let MINI_TRABALHANDO = false;
+async function miniCompletar(fotos, jaTem){
+  if(MINI_TRABALHANDO) return;
+  const faltam = fotos.filter(f=>!jaTem.has(f.uid) && !MINI_SEM_FONTE.has(f.uid));
+  if(!faltam.length) return;
+  MINI_TRABALHANDO = true;
+  let fez = 0;
+  try{
+    for(const fo of faltam.slice(0, 4)){
+      const im = await dbUm('imagens','fotoUid',fo.uid);
+      const fonte = im && (im.carimbada || im.original);
+      /* sem os bytes aqui no aparelho, a tela usa a miniatura da nuvem */
+      if(!fonte){ MINI_SEM_FONTE.add(fo.uid); continue; }
+      if(await miniGravar(fo.uid, fonte)) fez++;
+    }
+  }catch(e){ console.warn(e); }
+  MINI_TRABALHANDO = false;
+  if(fez && TELA==='seq') seqRender();
 }
 async function stEnviar(caminho, dataUrl){
   const r = await fetch((SYNC.url||'').replace(/\/+$/,'')+'/storage/v1/object/'+BUCKET+'/'+caminho, {
@@ -1438,18 +1583,17 @@ async function relMigrar(){
 
 /* Os furos da tela são os do relatório aberto. */
 async function seqFuros(){
-  const todos = await dbGetAll('furos');
   if(!REL_ATUAL) return [];
-  return todos.filter(f=>f.relatorioUid===REL_ATUAL.uid)
-              .sort((a,b)=>(parseInt(a.num)||0)-(parseInt(b.num)||0));
+  return await relFuros(REL_ATUAL.uid);
 }
 async function relFuros(uid){
-  const todos = await dbGetAll('furos');
-  return todos.filter(f=>f.relatorioUid===uid).sort((a,b)=>(parseInt(a.num)||0)-(parseInt(b.num)||0));
+  const doRel = await dbPorIndice('furos','relatorioUid',uid).catch(async()=>
+    (await dbGetAll('furos')).filter(f=>f.relatorioUid===uid));
+  return doRel.sort((a,b)=>(parseInt(a.num)||0)-(parseInt(b.num)||0));
 }
 async function seqFotosDe(furoUid){
-  const fs = await dbGetAll('fotos');
-  return fs.filter(x=>x.furoUid===furoUid);
+  return await dbPorIndice('fotos','furoUid',furoUid).catch(async()=>
+    (await dbGetAll('fotos')).filter(x=>x.furoUid===furoUid));
 }
 async function seqAddFuro(){
   limpa('s-err','s-ok');
@@ -1482,9 +1626,9 @@ function seqExcluirFuro(uid, num){
       const f = todos.find(x=>x.uid===uid);
       const fts = await seqFotosDe(uid);
       for(const ft of fts){
-        const imgs = await dbGetAll('imagens');
-        const im = imgs.find(i=>i.fotoUid===ft.uid);
+        const im = await dbUm('imagens','fotoUid',ft.uid);
         if(im) await _rawDel('imagens', im.id);
+        await miniApagar(ft.uid);
         await _rawDel('fotos', ft.id);
         fila('fotos', ft.uid, true);
       }
@@ -1501,9 +1645,9 @@ function excluirRelatorio(uid){
       const furos = await relFuros(uid);
       for(const f of furos){
         for(const ft of await seqFotosDe(f.uid)){
-          const imgs = await dbGetAll('imagens');
-          const im = imgs.find(i=>i.fotoUid===ft.uid);
+          const im = await dbUm('imagens','fotoUid',ft.uid);
           if(im) await _rawDel('imagens', im.id);
+          await miniApagar(ft.uid);
           await _rawDel('fotos', ft.id); fila('fotos', ft.uid, true);
         }
         await _rawDel('furos', f.id); fila('furos', f.uid, true);
@@ -1550,10 +1694,19 @@ async function seqRecebeuFoto(input){
   }
   const todos = await dbGetAll('furos');
   const furo = todos.find(x=>x.uid===furoUid); if(!furo) return;
-  seqMarcarOcupado(furoUid, tipo, 'Processando...');
+  const RELOG = {}; const marco = (n,t)=>{ RELOG[n] = Math.round(performance.now()-t); };
+  const t0 = performance.now();
+  seqMarcarOcupado(furoUid, tipo, 'Abrindo a foto...');
   try{
-    const original = await comprimir(arq, ID.qualidade||1000, 0.7);
+    const aberta = await abrirFoto(arq, ID.qualidade||1000);
+    marco('abrir', t0);
+    const t1 = performance.now();
+    const telaLimpa = telaDe(aberta, ID.qualidade||1000);
+    if(aberta.close) try{ aberta.close(); }catch(e){}
+    const original = telaLimpa.toDataURL('image/jpeg', 0.7);
+    marco('reduzir', t1);
     seqMarcarOcupado(furoUid, tipo, 'Pegando a localização...');
+    const t2 = performance.now();
     let gps = await gpsAgora(20000);
     /* Sem ponto na primeira tentativa: o relatório vale muito menos sem
        coordenada, então o app insiste uma vez e, se ainda assim não vier,
@@ -1577,7 +1730,8 @@ async function seqRecebeuFoto(input){
         gps = await gpsAgora(30000);
       }
     }
-    seqMarcarOcupado(furoUid, tipo, 'Processando...');
+    marco('gps', t2);
+    seqMarcarOcupado(furoUid, tipo, 'Carimbando...');
     const meta = {
       dataHora:new Date().toISOString(),
       lat:gps&&gps.lat, lng:gps&&gps.lng, alt:gps&&gps.alt, precisao:gps&&gps.prec,
@@ -1585,16 +1739,23 @@ async function seqRecebeuFoto(input){
       indice: Date.now().toString().slice(-6),
       endereco:null, mapa:null
     };
+    /* O endereço e o mini mapa vêm da internet. Esperar por eles com a mão
+       no celular era o que fazia a foto demorar meio minuto na obra: numa
+       conexão fraca o servidor de endereços leva o tempo que quiser. Agora a
+       foto é gravada na hora, com data, hora, coordenada e bússola — que é o
+       que vale como prova e não depende de sinal. O endereço entra depois,
+       sozinho, e o carimbo é refeito antes de a foto subir. */
     let enderecoOk = false;
-    if(gps && navigator.onLine){
-      try{ meta.endereco = await buscarEndereco(gps.lat, gps.lng); enderecoOk = true; }catch(e){ console.warn('sem endereço', e); }
-      try{ meta.mapa = await miniMapa(gps.lat, gps.lng); }catch(e){ console.warn('sem mapa', e); }
-    }
+    const jaSabido = gps && enderecoDoCache(gps.lat, gps.lng);
+    if(jaSabido){ meta.endereco = jaSabido; enderecoOk = true;
+      const mp = mapaDoCache(gps.lat, gps.lng); if(mp) meta.mapa = mp; }
     if(!gps){
       const prob = gpsMotivo();
       alerta('s-aviso', `Foto guardada <b>sem localização</b>. ${prob?prob.t:'O GPS não respondeu.'}`, 0);
     } else limpa('s-aviso');
-    const carimbada = await carimbar(original, meta);
+    const t3 = performance.now();
+    const carimbada = await carimbar(telaLimpa, meta);
+    marco('carimbo', t3);
 
     const fotosDoFuro = await seqFotosDe(furoUid);
     const ja = fotosDoFuro.find(x=>x.tipo===tipo);
@@ -1612,22 +1773,116 @@ async function seqRecebeuFoto(input){
     if(ja){ registro.uid = ja.uid; registro.id = ja.id; await dbPut('fotos', registro); fotoUid = ja.uid; }
     else { await dbAdd('fotos', registro); fotoUid = (await seqFotosDe(furoUid)).find(x=>x.tipo===tipo).uid; }
 
-    const imgs = await dbGetAll('imagens');
-    const antiga = imgs.find(i=>i.fotoUid===fotoUid);
+    const antiga = await dbUm('imagens','fotoUid',fotoUid);
     const linha = {fotoUid, original, carimbada, completa:enderecoOk};
     if(antiga) await _rawPut('imagens', {...antiga, ...linha});
     else await _rawAdd('imagens', linha);
+    await miniGravar(fotoUid, carimbada);
+    MINI_SEM_FONTE.delete(fotoUid);
 
     await seqRender();
+    RELOG.total = Math.round(performance.now()-t0);
+    guardarRelogio(RELOG);
+    /* o endereço corre atrás, sem prender ninguém */
+    if(!enderecoOk) setTimeout(completarCarimbos, 400);
   }catch(err){
     console.error(err);
     alerta('s-err','Não deu para guardar a foto: '+esc(err.message||err));
     await seqRender();
   }
 }
+/* Guarda o tempo das últimas fotos. É o que permite descobrir, sem adivinhar,
+   se o aparelho está demorando na câmera, no GPS ou no carimbo. Aparece em
+   Ajustes e vai junto no registro do aparelho. */
+function guardarRelogio(r){
+  try{
+    const l = JSON.parse(localStorage.getItem('rrbapp_tempos')||'[]');
+    l.unshift({...r, q:new Date().toISOString()});
+    localStorage.setItem('rrbapp_tempos', JSON.stringify(l.slice(0,30)));
+  }catch(e){}
+  console.log('tempo da foto (ms)', r);
+}
+
+/* ---- o endereço alcança a foto depois --------------------------------------
+   A foto é gravada na hora, sem esperar a internet. Esta rotina roda de fundo,
+   pega as fotos que ainda estão sem endereço, busca e refaz o carimbo. Se não
+   houver sinal, não faz nada e tenta de novo mais tarde — e mesmo que nunca
+   consiga, o envio ainda completa o carimbo antes de a foto subir. */
+let CARIMBO_RODANDO = false;
+async function completarCarimbos(quantas){
+  if(CARIMBO_RODANDO || !navigator.onLine) return 0;
+  CARIMBO_RODANDO = true;
+  let feitas = 0;
+  try{
+    const todas = await dbGetAll('fotos');
+    /* foto já enviada não se mexe: a que está na nuvem é a que vale */
+    const faltam = todas.filter(f=>!f.enderecoOk && f.lat != null && !f.deletado && !f.enviada)
+                        .sort((a,b)=>String(b.dataHora||'').localeCompare(String(a.dataHora||'')));
+    for(const fo of faltam.slice(0, quantas || 3)){
+      const im = await dbUm('imagens','fotoUid',fo.uid);
+      if(!im || !(im.original || im.carimbada)) continue;
+      let end = enderecoDoCache(fo.lat, fo.lng);
+      if(!end){ try{ end = await buscarEndereco(fo.lat, fo.lng); }
+                catch(e){ console.warn('endereço adiado', e); break; } }   /* sem rede: para por aqui */
+      let mapa = mapaDoCache(fo.lat, fo.lng);
+      if(!mapa){ try{ mapa = await miniMapa(fo.lat, fo.lng); }catch(e){ mapa = null; } }
+      const nova = await carimbar(im.original || im.carimbada, {
+        dataHora:fo.dataHora, lat:fo.lat, lng:fo.lng, alt:fo.alt,
+        heading:fo.heading, direcao:fo.direcao, indice:fo.indice, endereco:end, mapa
+      });
+      await _rawPut('imagens', {...im, carimbada:nova, completa:true});
+      await miniGravar(fo.uid, nova);
+      await dbPut('fotos', {...fo, endereco:end, enderecoOk:true, temMapa:!!mapa});
+      feitas++;
+    }
+  }catch(e){ console.warn(e); }
+  CARIMBO_RODANDO = false;
+  if(feitas && TELA==='seq') seqRender();
+  return feitas;
+}
 function seqMarcarOcupado(furoUid, tipo, txt){
   const el = document.querySelector(`[data-slot="${furoUid}|${tipo}"]`);
-  if(el) el.innerHTML = `<i class="ti ti-loader-2"></i><div class="rot">${esc(txt)}</div>`;
+  if(el){
+    el.innerHTML = `<i class="ti ti-loader-2"></i><div class="rot">${esc(txt)}</div>`;
+    /* o cartão foi mexido na mão: o próximo desenho tem de refazê-lo */
+    const cart = el.closest('.fcard-furo');
+    if(cart) cart.dataset.sinal = 'mexido';
+  }
+}
+
+/* -------------------- desenho da lista, só o que mudou -------------------
+   Antes a lista inteira era refeita a cada foto: o navegador jogava fora e
+   recriava todos os quadros e todas as imagens. Com vinte furos na tela isso
+   era meio segundo de travada a cada toque, e piorava conforme o dia enchia.
+   Agora cada furo é um cartão com uma assinatura do que ele mostra. O que não
+   mudou fica exatamente onde está — nem a imagem é aberta de novo. */
+function pintarLista(cartoes){
+  const box = $('s-lista');
+  if(!cartoes.length){
+    box.innerHTML = `<div class="empty"><i class="ti ti-camera-off"></i>
+      Nenhum furo lançado neste relatório. Toque em <b>Adicionar furo</b> para começar.</div>`;
+    return;
+  }
+  /* se o que está na tela não são cartões (aviso de lista vazia), começa limpo */
+  if([...box.children].some(el=>!el.dataset || !el.dataset.furo)) box.innerHTML = '';
+  const naTela = new Map([...box.children].map(el=>[el.dataset.furo, el]));
+  const querem = new Set(cartoes.map(c=>c.uid));
+  for(const [uid, el] of naTela) if(!querem.has(uid)){ el.remove(); naTela.delete(uid); }
+
+  let anterior = null;
+  for(const c of cartoes){
+    let el = naTela.get(c.uid);
+    if(!el || el.dataset.sinal !== c.sinal){
+      const molde = document.createElement('div');
+      molde.innerHTML = c.html;
+      const novo = molde.firstElementChild;
+      if(el) box.replaceChild(novo, el); else box.appendChild(novo);
+      el = novo; naTela.set(c.uid, el);
+    }
+    const lugar = anterior ? anterior.nextElementSibling : box.firstElementChild;
+    if(lugar !== el) box.insertBefore(el, lugar);
+    anterior = el;
+  }
 }
 
 /* As medidas (largura, comprimento, espessura) e a observação saíram da tela do
@@ -1642,34 +1897,39 @@ async function seqRender(){
     await relAtualDoDia(false);
     pintarRelBar();
     const furos = await seqFuros();
-    const todasFotos = await dbGetAll('fotos');
+    /* só as fotos destes furos, pelo atalho — não o arquivo inteiro */
+    const todasFotos = await fotosDe(furos);
     const mapaF = new Map();
     todasFotos.forEach(x=>{ mapaF.set(x.furoUid+'|'+x.tipo, x); });
-    const imgs = await dbGetAll('imagens');
-    const mapaI = new Map(imgs.map(i=>[i.fotoUid, i]));
+    /* miniaturas: uns 20 KB cada, contra 1 MB da foto inteira */
+    const mapaI = new Map((await dbGetAll('minis')).map(i=>[i.fotoUid, i.mini]));
 
     let nFotos = 0, semEnd = 0, aEnviar = 0, semGps = 0;
-    const html = furos.map(f=>{
+    const cartoes = furos.map(f=>{
+      const marcas = [];
       const cels = ['antes','depois'].map(tipo=>{
         const fo = mapaF.get(f.uid+'|'+tipo);
         const rot = `FURO ${f.num}<br>${tipo==='antes'?'ANTES':'DEPOIS'}`;
-        if(!fo) return `<div class="slotp" data-slot="${f.uid}|${tipo}" onclick="seqTirar('${f.uid}','${tipo}')">
-            <i class="ti ti-camera-plus"></i><div class="rot">${rot}</div></div>`;
+        if(!fo){ marcas.push(tipo+':-');
+          return `<div class="slotp" data-slot="${f.uid}|${tipo}" onclick="seqTirar('${f.uid}','${tipo}')">
+            <i class="ti ti-camera-plus"></i><div class="rot">${rot}</div></div>`; }
         nFotos++;
         if(!fo.enviada) aEnviar++;
         if(!fo.enderecoOk) semEnd++;
         if(fo.lat == null) semGps++;
-        const im = mapaI.get(fo.uid);
-        const src = im ? im.carimbada : (fo.url||'');
+        const mini = mapaI.get(fo.uid);
+        const src = mini || fo.urlMini || fo.url || '';
         const gpsCls = fo.lat!=null ? '' : ' no';
         const gpsTxt = fo.lat!=null ? (fo.enderecoOk?'GPS+END':'GPS') : 'SEM GPS';
+        marcas.push(`${tipo}:${fo.uid}:${fo._ts||0}:${mini?'m':'r'}`);
         return `<div class="slotp cheio" data-slot="${f.uid}|${tipo}" onclick="seqTirar('${f.uid}','${tipo}')">
-            ${src?`<img src="${src}" alt="">`:''}
+            ${src?`<img src="${src}" alt="" decoding="async" loading="lazy">`:''}
             <div class="gps${gpsCls}">${gpsTxt}</div>
             <div class="tag">${esc(fo.rotulo)}${fo.enviada?' ✓':''}</div></div>`;
       }).join('');
       const completo = mapaF.has(f.uid+'|antes') && mapaF.has(f.uid+'|depois');
-      return `<div class="fcard-furo${completo?' ok':''}">
+      const sinal = `${f.num}|${f.rua||''}|${marcas.join('|')}`;
+      const html = `<div class="fcard-furo${completo?' ok':''}" data-furo="${f.uid}" data-sinal="${esc(sinal)}">
         <div class="fh"><b>Furo ${f.num}</b>
           ${f.rua?`<span style="font-size:11.5px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.rua)}</span>`:'<span style="flex:1"></span>'}
           <span class="st ${completo?'s-ok':'s-wn'}">${completo?'2 fotos':'incompleto'}</span>
@@ -1677,10 +1937,13 @@ async function seqRender(){
         <div class="fb">
           <div class="fotos">${cels}</div>
         </div></div>`;
-    }).join('');
+      /* o atributo vai escapado, mas o navegador devolve o texto cru em
+         dataset.sinal — a comparação tem de ser com o texto cru */
+      return {uid:f.uid, sinal, html};
+    });
 
-    $('s-lista').innerHTML = html || `<div class="empty"><i class="ti ti-camera-off"></i>
-      Nenhum furo lançado neste relatório. Toque em <b>Adicionar furo</b> para começar.</div>`;
+    pintarLista(cartoes);
+    miniCompletar(todasFotos, mapaI);   /* de fundo, sem segurar a tela */
     $('s-add-txt').textContent = furos.length
       ? `Adicionar furo ${furos.length+1} (2 fotos)` : 'Adicionar furo 1 (2 fotos)';
     const rua = $('s-rua').value.trim();
@@ -1809,19 +2072,16 @@ async function seqEnviarFotos(silencioso){
   if(!conectado()){ alerta('s-err','O app não está ligado ao sistema do escritório.'); return false; }
   if(!navigator.onLine){ alerta('s-err','Sem internet. As fotos ficam guardadas e sobem quando a conexão voltar.'); return false; }
   const furos = await seqFuros();
-  const uids = new Set(furos.map(f=>f.uid));
-  const fotos = (await dbGetAll('fotos')).filter(x=>uids.has(x.furoUid));
+  const fotos = await fotosDe(furos);
   const pend = fotos.filter(x=>!x.enviada);
   if(!pend.length){ if(!silencioso) alerta('s-ok','Todas as fotos deste dia já estão no escritório.'); return true; }
-  const imgs = await dbGetAll('imagens');
-  const mapaI = new Map(imgs.map(i=>[i.fotoUid,i]));
   let ok = 0, falhas = 0;
   for(let i=0;i<pend.length;i++){
     const fo = pend[i];
     alerta('s-prog', `Enviando foto <b>${i+1}</b> de <b>${pend.length}</b>...
       <div class="barra"><div style="width:${Math.round((i/pend.length)*100)}%"></div></div>`, 0);
     try{
-      const im = mapaI.get(fo.uid);
+      const im = await dbUm('imagens','fotoUid',fo.uid);
       if(!im){ falhas++; continue; }
       let carimbada = im.carimbada;
       /* completa o endereço agora que há internet e refaz o carimbo */
@@ -1835,6 +2095,7 @@ async function seqEnviarFotos(silencioso){
           });
           fo.endereco = end; fo.enderecoOk = true; fo.temMapa = !!mapa;
           await _rawPut('imagens', {...im, carimbada, completa:true});
+          await miniGravar(fo.uid, carimbada);   /* o carimbo mudou: a miniatura também */
         }catch(e){ console.warn('endereço adiado', e); }
       }
       const url = await stEnviar(fo.arquivo || stCaminho(fo), carimbada);
@@ -1847,9 +2108,17 @@ async function seqEnviarFotos(silencioso){
       }catch(e){ console.warn('sem miniatura', e); urlMini = ''; arquivoMini = ''; }
       await dbPut('fotos', {...fo, enviada:true, url, urlMini, arquivoMini,
         enviadaEm:new Date().toISOString()});
-      /* libera espaço: o original não é mais necessário depois do envio */
-      const im2 = (await dbGetAll('imagens')).find(x=>x.fotoUid===fo.uid);
-      if(im2) await _rawPut('imagens', {...im2, original:null});
+      /* Libera espaço. Depois de enviada, a foto inteira está guardada na nuvem
+         e no escritório. No aparelho fica só o tamanho que o relatório do campo
+         precisa (47 mm no papel) — é o que segura o app leve depois de semanas
+         de trabalho, em vez de ir engordando sem parar. */
+      const im2 = await dbUm('imagens','fotoUid',fo.uid);
+      if(im2){
+        let guardada = im2.carimbada;
+        if(!im2.reduzida){ try{ guardada = await encolher(carimbada, PDF_LARGURA, 0.7); }
+          catch(e){ console.warn('sem reducao', e); } }
+        await _rawPut('imagens', {...im2, original:null, carimbada:guardada, reduzida:true});
+      }
       ok++;
     }catch(err){ console.error(err); falhas++; }
   }
@@ -1882,9 +2151,10 @@ async function seqGerarPDF(compartilhar){
     const jsPDF = await carregarJsPDF();
     const doc = new jsPDF({unit:'mm', format:'a4', orientation:'portrait', compress:true});
 
-    const fotos = await dbGetAll('fotos');
-    const imgs = await dbGetAll('imagens');
-    const mapaI = new Map(imgs.map(i=>[i.fotoUid,i]));
+    /* só as fotos destes furos, e só as imagens delas — não o arquivo todo */
+    const fotos = await fotosDe(furos);
+    const mapaI = new Map();
+    for(const fo of fotos){ const im = await dbUm('imagens','fotoUid',fo.uid); if(im) mapaI.set(fo.uid, im); }
     const mapaF = new Map(); fotos.forEach(x=>mapaF.set(x.furoUid+'|'+x.tipo,x));
 
     const pares = [];
@@ -2350,15 +2620,23 @@ const REL_CLS = {'Validado':'s-ok','Devolvido':'s-rd','Pendente':'s-wn','Vazio':
 
 async function renderMeus(){
   try{
-    const [furos, rels, fotos, imgs] = await Promise.all([
-      dbGetAll('furos'), dbGetAll('relatorios'), dbGetAll('fotos'), dbGetAll('imagens')]);
-    const mapI = new Map(imgs.map(i=>[i.fotoUid,i]));
+    /* as capas da lista usam a miniatura: a foto inteira ali era peso puro */
+    const [furos, rels, fotos, minis] = await Promise.all([
+      dbGetAll('furos'), dbGetAll('relatorios'), dbGetAll('fotos'), dbGetAll('minis')]);
+    const mapI = new Map(minis.map(i=>[i.fotoUid,i.mini]));
     const meu = x => !ID.nome || !x.lancadoPor || x.lancadoPor===ID.nome || x.dispositivo===ID.dispositivo;
 
     const porRel = new Map();
     furos.filter(f=>f.relatorioUid).forEach(f=>{
       if(!porRel.has(f.relatorioUid)) porRel.set(f.relatorioUid, []);
       porRel.get(f.relatorioUid).push(f);
+    });
+    /* fotos agrupadas por furo de uma vez só: varrer a lista inteira de fotos
+       para cada relatório fazia a tela demorar mais a cada dia lançado */
+    const porFuro = new Map();
+    fotos.forEach(x=>{
+      if(!porFuro.has(x.furoUid)) porFuro.set(x.furoUid, []);
+      porFuro.get(x.furoUid).push(x);
     });
 
     const abertoAgora = REL_ATUAL ? REL_ATUAL.uid : '';
@@ -2367,10 +2645,10 @@ async function renderMeus(){
       .filter(r=>(porRel.get(r.uid)||[]).length || r.uid===abertoAgora && false)
       .map(r=>{
       const fs = (porRel.get(r.uid)||[]).sort((a,b)=>(parseInt(a.num)||0)-(parseInt(b.num)||0));
-      const fts = fotos.filter(x=>fs.some(f=>f.uid===x.furoUid));
+      const fts = fs.flatMap(f=>porFuro.get(f.uid) || []);
       const sit = relSituacao(fs, r);
       const devolvidos = fs.filter(f=>f.status==='Devolvido');
-      const capas = fts.slice(0,2).map(x=>{ const im = mapI.get(x.uid); return (im&&im.carimbada) || x.url || ''; });
+      const capas = fts.slice(0,2).map(x=> mapI.get(x.uid) || x.urlMini || x.url || '');
       return {r, fs, sit, devolvidos, nFotos:fts.length, capas};
     }).sort((a,b)=>{
       const pa = a.sit==='Devolvido'?0:1, pb = b.sit==='Devolvido'?0:1;
@@ -2532,10 +2810,13 @@ async function baixarRelatorio(uid){
       pintarQuem(); ir('inicio');
       if(navigator.onLine) sincronizar(true);
       setInterval(()=>{ if(!document.hidden && navigator.onLine) sincronizar(true); }, 120000);
+      /* o endereço das fotos vai sendo completado de fundo, sem atrapalhar */
+      setTimeout(completarCarimbos, 8000);
+      setInterval(()=>{ if(!document.hidden && navigator.onLine) completarCarimbos(2); }, 45000);
     } else {
       mostrarLogin(); TELA='login';
     }
-    window.addEventListener('online', ()=>{ pintarChip(); sincronizar(true); });
+    window.addEventListener('online', ()=>{ pintarChip(); sincronizar(true); setTimeout(completarCarimbos, 3000); });
     window.addEventListener('offline', pintarChip);
   }catch(err){
     document.querySelector('.wrap').insertAdjacentHTML('afterbegin',
