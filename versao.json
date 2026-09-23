@@ -1,8 +1,8 @@
 {
-  "appVersion": "20260918-025",
+  "appVersion": "20260923-027",
   "apkVersionCode": 6,
   "apkVersionName": "1.5",
   "apkUrl": "https://gedremsisep-lgtm.github.io/rr-barros-app/RR-Barros.apk",
-  "publicadoEm": "2026-09-18T16:56:21Z",
-  "notas": "Miniaturas: app sobe versao leve e o escritorio usa ela na tela e no papel, para cortar o trafego da nuvem"
+  "publicadoEm": "2026-09-23T13:02:19Z",
+  "notas": "App do campo mais rapido: a foto grava na hora e o endereco entra depois sozinho"
 }
