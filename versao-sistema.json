@@ -1,6 +1,6 @@
 {
-  "systemVersion": "20260930-037",
+  "systemVersion": "20260930-038",
   "exeVersion": "1.1.0",
-  "publicadoEm": "2026-09-30T19:43:19Z",
-  "notas": "Sistema: versao em uso no canto direito do Resumo Geral"
+  "publicadoEm": "2026-09-30T19:55:08Z",
+  "notas": "Sistema: cabecalho do documento no editor com fiscal, equipe e regiao"
 }
