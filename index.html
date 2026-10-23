@@ -424,7 +424,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261023-029';
+const APP_VERSION = '20261023-030';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -944,10 +944,25 @@ async function pintarFilaFotos(){
     }
     const n = await filaFotos();
     const esp = await espacoUsado();
+    const rodape = esp ? `<p style="font-size:12.5px;color:var(--text2);margin-top:10px">Espaço usado pelo app: <b>${esp}</b></p>` : '';
     if(!n){
+      /* Fila vazia tem DOIS significados muito diferentes, e dizer "está tudo
+         no escritório" no caso errado já escondeu milhares de fotos:
+         ou nada ficou para trás, ou o arquivo sumiu deste celular. */
+      const orfas = await fotosSemArquivoAqui();
+      if(orfas.length){
+        const deOutro = [...new Set(orfas.map(f=>f.dispositivo).filter(d=>d && d!==ID.dispositivo))];
+        box.innerHTML = `<div class="al ae show" style="margin:0"><i class="ti ti-alert-triangle"></i>
+          <span><b>${orfas.length}</b> foto(s) estão registradas mas o arquivo <b>não está neste aparelho</b>.
+          Este celular não tem como enviá-las.${deOutro.length
+            ? ` Elas foram tiradas em: <b>${esc(deOutro.join(', '))}</b> — é nesse aparelho que elas podem ser enviadas.`
+            : ' Procure o gestor antes de mexer neste aparelho.'}</span></div>
+          <p style="font-size:12.5px;color:var(--text2);margin-top:10px">
+            Não desinstale nem limpe os dados de nenhum celular até isso ser resolvido.</p>` + rodape;
+        return;
+      }
       box.innerHTML = `<div class="al ag show" style="margin:0"><i class="ti ti-circle-check"></i>
-        <span>Nenhuma foto presa neste aparelho. Tudo que foi tirado já está no escritório.</span></div>`
-        + (esp ? `<p style="font-size:12.5px;color:var(--text2);margin-top:10px">Espaço usado pelo app: <b>${esp}</b></p>` : '');
+        <span>Nenhuma foto presa neste aparelho. Tudo que foi tirado já está no escritório.</span></div>` + rodape;
       return;
     }
     box.innerHTML = `
@@ -964,6 +979,29 @@ async function pintarFilaFotos(){
     box.innerHTML = `<div class="al ae show" style="margin:0"><i class="ti ti-alert-circle"></i>
       <span>Não deu para ler a fila: ${esc(err.message||err)}</span></div>`;
   }
+}
+/* Quais fotos têm bytes guardados aqui — lendo só as chaves, sem abrir
+   nenhuma imagem (abrir todas é o que estourava a memória). */
+function uidsComBytes(){
+  return new Promise(res=>{
+    const s = new Set();
+    try{
+      const c = db.transaction('imagens','readonly').objectStore('imagens').index('fotoUid').openKeyCursor();
+      c.onsuccess = ()=>{ const k=c.result; if(!k) return res(s); s.add(k.key); k.continue(); };
+      c.onerror   = ()=> res(s);
+    }catch(e){ res(s); }
+  });
+}
+/* Fotos que existem como ficha mas cujo arquivo não está aqui nem na nuvem.
+   São as que nenhum aperto de botão neste celular vai resolver. */
+async function fotosSemArquivoAqui(){
+  try{
+    const fotos = await dbGetAll('fotos');
+    const pendentes = fotos.filter(f=>!f.deletado && !f.enviada && !(f.url||'').length);
+    if(!pendentes.length) return [];
+    const temBytes = await uidsComBytes();
+    return pendentes.filter(f=>!temBytes.has(f.uid));
+  }catch(e){ return []; }
 }
 async function espacoUsado(){
   try{
@@ -2045,7 +2083,11 @@ async function seqRender(){
     /* miniaturas: uns 20 KB cada, contra 1 MB da foto inteira */
     const mapaI = await minisDasFotos(todasFotos.map(f=>f.uid));
 
-    let nFotos = 0, semEnd = 0, aEnviar = 0, semGps = 0;
+    /* separar "falta enviar" de "o arquivo não está neste celular": são
+       coisas diferentes e tratá-las igual fez o fiscal apertar enviar duas
+       vezes achando que ia resolver, sem nada para enviar. */
+    const comBytes = await uidsComBytes();
+    let nFotos = 0, semEnd = 0, aEnviar = 0, semGps = 0, semArquivo = 0;
     const cartoes = furos.map(f=>{
       const marcas = [];
       const cels = ['antes','depois'].map(tipo=>{
@@ -2055,7 +2097,7 @@ async function seqRender(){
           return `<div class="slotp" data-slot="${f.uid}|${tipo}" onclick="seqTirar('${f.uid}','${tipo}')">
             <i class="ti ti-camera-plus"></i><div class="rot">${rot}</div></div>`; }
         nFotos++;
-        if(!fo.enviada) aEnviar++;
+        if(!fo.enviada){ if(comBytes.has(fo.uid)) aEnviar++; else semArquivo++; }
         if(!fo.enderecoOk) semEnd++;
         if(fo.lat == null) semGps++;
         const mini = mapaI.get(fo.uid);
@@ -2094,7 +2136,9 @@ async function seqRender(){
       `<div class="kc"><div class="kl">Furos</div><div class="kv">${furos.length}</div></div>
        <div class="kc gn"><div class="kl">Fotos</div><div class="kv">${nFotos}</div></div>
        <div class="kc ${aEnviar?'am':'gn'}"><div class="kl">A enviar</div><div class="kv">${aEnviar}</div></div>
-       <div class="kc ${semEnd?'am':'gn'}"><div class="kl">Sem endereço</div><div class="kv">${semEnd}</div></div>`;
+       ${semArquivo
+         ? `<div class="kc rd"><div class="kl">Sem arquivo aqui</div><div class="kv">${semArquivo}</div></div>`
+         : `<div class="kc ${semEnd?'am':'gn'}"><div class="kl">Sem endereço</div><div class="kv">${semEnd}</div></div>`}`;
 
     pintarPosRelatorio(furos.length);
     const partes = [];
@@ -2102,6 +2146,9 @@ async function seqRender(){
     else{
       partes.push(`<b>${furos.length}</b> furos e <b>${nFotos}</b> fotos neste relatório.`);
       if(aEnviar) partes.push(`<b>${aEnviar}</b> foto(s) ainda não foram enviadas.`);
+      if(semArquivo) partes.push(`<span style="color:var(--red)"><b>${semArquivo}</b> foto(s) com o arquivo
+        fora deste aparelho — apertar enviar aqui não resolve. Fale com o gestor antes de desinstalar
+        ou limpar qualquer celular.</span>`);
       if(semEnd) partes.push(`<b>${semEnd}</b> sem endereço no carimbo — o app completa quando houver internet.`);
       if(semGps) partes.push(`<span style="color:var(--red)"><b>${semGps}</b> sem GPS.</span>`);
     }
