@@ -1,8 +1,8 @@
 {
-  "appVersion": "20261023-032",
+  "appVersion": "20261023-033",
   "apkVersionCode": 6,
   "apkVersionName": "1.5",
   "apkUrl": "https://gedremsisep-lgtm.github.io/rr-barros-app/RR-Barros.apk",
-  "publicadoEm": "2026-10-23T17:07:37Z",
-  "notas": "As fotos presas passam a subir sozinhas no Wi-Fi, com aviso na tela de inicio"
+  "publicadoEm": "2026-10-23T19:24:01Z",
+  "notas": "Tela Enviar mostra o nome do proprio aparelho, para achar o celular certo entre varios"
 }
