@@ -1,8 +1,8 @@
 {
-  "appVersion": "20260923-027",
+  "appVersion": "20261023-029",
   "apkVersionCode": 6,
   "apkVersionName": "1.5",
   "apkUrl": "https://gedremsisep-lgtm.github.io/rr-barros-app/RR-Barros.apk",
-  "publicadoEm": "2026-09-30T20:04:22Z",
-  "notas": "Sistema: regiao ao lado do titulo no cabecalho impresso, em todas as paginas"
+  "publicadoEm": "2026-10-23T13:26:15Z",
+  "notas": "App do campo mais leve: envia as fotos presas de qualquer dia e libera o espaco do celular"
 }
