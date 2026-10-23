@@ -426,7 +426,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261023-033';
+const APP_VERSION = '20261023-034';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -1898,8 +1898,14 @@ function excluirRelatorio(uid){
 
 /* Captura: tira a foto, pega GPS/bússola, busca o endereço se houver
    internet e já grava a versão carimbada. */
+/* Enquanto a câmera está aberta ou a foto está sendo gravada, nada pode
+   recarregar a tela por baixo — perderia a foto. */
+let CAPTURANDO = false;
 function seqTirar(furoUid, tipo){
   SEQ_FURO = furoUid; SEQ_TIPO = tipo;
+  CAPTURANDO = true;
+  /* se o fiscal desistir e voltar sem tirar foto, a trava se solta sozinha */
+  setTimeout(()=>{ if(CAPTURANDO && !document.hidden) CAPTURANDO = false; }, 120000);
   $('seq-file').value = '';
   $('seq-file').click();
 }
@@ -1914,7 +1920,9 @@ function fotoDeAgora(arq){
   return minutos <= JANELA_FOTO_MIN && minutos >= -JANELA_FOTO_MIN;
 }
 async function seqRecebeuFoto(input){
-  const arq = input.files[0]; if(!arq) return;
+  const arq = input.files[0];
+  if(!arq){ CAPTURANDO = false; return; }
+  CAPTURANDO = true;
   const furoUid = SEQ_FURO, tipo = SEQ_TIPO;
   input.value = '';
   /* Só entra foto tirada na hora. No aplicativo instalado a galeria nem é
@@ -1922,11 +1930,13 @@ async function seqRecebeuFoto(input){
      ainda deixam escapar a galeria — aqui a foto antiga é recusada. */
   if(!fotoDeAgora(arq)){
     alerta('s-aviso','Só é aceita <b>foto tirada na hora</b>. Toque de novo no quadro e use a câmera.', 0);
+    CAPTURANDO = false;
     await seqRender();
     return;
   }
   const todos = await dbGetAll('furos');
-  const furo = todos.find(x=>x.uid===furoUid); if(!furo) return;
+  const furo = todos.find(x=>x.uid===furoUid);
+  if(!furo){ CAPTURANDO = false; return; }
   const RELOG = {}; const marco = (n,t)=>{ RELOG[n] = Math.round(performance.now()-t); };
   const t0 = performance.now();
   seqMarcarOcupado(furoUid, tipo, 'Abrindo a foto...');
@@ -2022,6 +2032,8 @@ async function seqRecebeuFoto(input){
     console.error(err);
     alerta('s-err','Não deu para guardar a foto: '+esc(err.message||err));
     await seqRender();
+  }finally{
+    CAPTURANDO = false;
   }
 }
 /* Guarda o tempo das últimas fotos. É o que permite descobrir, sem adivinhar,
@@ -2805,11 +2817,42 @@ const CANAL_APP = 'https://gedremsisep-lgtm.github.io/rr-barros-app/';
 let ATUALIZACAO = null;
 function noAplicativo(){ return typeof AndroidRRB !== 'undefined'; }
 
+/* A faixa "Usar a versão nova" dependia de alguém tocar nela — e ninguém
+   tocava: ficaram celulares um mês para trás, sem os consertos que importavam.
+   Agora a troca é sozinha, no momento em que não atrapalha ninguém. */
+function podeTrocarAgora(){
+  try{
+    if(DRENO.rodando) return false;                  /* envio em andamento */
+    if(typeof CAPTURANDO !== 'undefined' && CAPTURANDO) return false;
+    if(document.getElementById('ov-conf') &&
+       document.getElementById('ov-conf').style.display === 'flex') return false;
+    return TELA === 'inicio' || TELA === 'login' || TELA === 'par';
+  }catch(e){ return false; }
+}
+/* Troca de verdade, com trava contra ficar recarregando em círculo quando o
+   arquivo servido teima em vir do cache. */
+function trocarPelaVersao(v){
+  try{
+    const ja = JSON.parse(sessionStorage.getItem('rrbapp_troca') || '{}');
+    if(ja.v === v && (ja.n || 0) >= 2) return false;
+    sessionStorage.setItem('rrbapp_troca', JSON.stringify({v, n: (ja.v === v ? (ja.n||0) : 0) + 1}));
+  }catch(e){}
+  if(noAplicativo()) AndroidRRB.aplicarAtualizacao();
+  else location.replace(location.pathname + '?v=' + encodeURIComponent(v));
+  return true;
+}
+function trocandoAgora(v){
+  const box = $('in-atualizacao');
+  if(box) box.innerHTML = `<div class="relbar fim" style="margin-bottom:12px">
+    <i class="ti ti-download"></i><span>Atualizando para a versão <b>${esc(v||'')}</b>...</span></div>`;
+}
+
 /* chamada pelo próprio aplicativo quando termina de procurar */
 function avisarAtualizacao(estado, valor){
   ATUALIZACAO = {estado, valor, versao:valor};
   if(estado === 'pronta'){
     pintarFaixaAtualizacao();
+    if(podeTrocarAgora()){ trocandoAgora(valor); setTimeout(()=>trocarPelaVersao(valor), 1200); return; }
     alerta('a-ver-ok', 'Versão <b>'+esc(valor)+'</b> baixada. Toque em <b>Usar a versão nova</b>.', 0);
   } else if(estado === 'igual'){
     alerta('a-ver-info', 'Você já está na versão mais recente (<b>'+esc(valor)+'</b>).');
@@ -3254,9 +3297,26 @@ async function baixarRelatorio(uid){
       fetch(CANAL_APP+'versao.json?t='+Date.now(), {cache:'no-store'})
         .then(r=>r.ok?r.json():null)
         .then(j=>{ if(j && j.appVersion && j.appVersion !== APP_VERSION){
-          ATUALIZACAO = {estado:'pronta', versao:j.appVersion}; pintarFaixaAtualizacao(); } })
+          ATUALIZACAO = {estado:'pronta', versao:j.appVersion}; pintarFaixaAtualizacao();
+          if(podeTrocarAgora()){ trocandoAgora(j.appVersion);
+            setTimeout(()=>trocarPelaVersao(j.appVersion), 1200); } } })
         .catch(()=>{});
     }, 4000);
+    /* dentro do aplicativo instalado quem procura é a casca; mandar procurar
+       já na abertura é o que garante que ninguém fique para trás */
+    if(noAplicativo()) setTimeout(()=>{
+      try{ if(navigator.onLine) AndroidRRB.procurarAtualizacao(); }catch(e){}
+    }, 5000);
+    /* e de hora em hora, para quem deixa o app aberto o dia todo */
+    setInterval(()=>{
+      if(document.hidden || !navigator.onLine || !podeTrocarAgora()) return;
+      if(noAplicativo()){ try{ AndroidRRB.procurarAtualizacao(); }catch(e){} return; }
+      fetch(CANAL_APP+'versao.json?t='+Date.now(), {cache:'no-store'})
+        .then(r=>r.ok?r.json():null)
+        .then(j=>{ if(j && j.appVersion && j.appVersion !== APP_VERSION){
+          trocandoAgora(j.appVersion); setTimeout(()=>trocarPelaVersao(j.appVersion), 1200); } })
+        .catch(()=>{});
+    }, 3600000);
     if(pronto()){
       pintarQuem(); ir('inicio');
       if(navigator.onLine) sincronizar(true);
