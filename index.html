@@ -424,7 +424,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261023-030';
+const APP_VERSION = '20261023-031';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -713,10 +713,12 @@ function hoje(){ return new Date().toISOString().slice(0,10); }
 function alerta(id,msg,ms){ const el=$(id); if(!el)return; el.querySelector('span').innerHTML=msg; el.classList.add('show');
   if(ms!==0) setTimeout(()=>el.classList.remove('show'), ms||4500); }
 function limpa(...ids){ ids.forEach(i=>$(i)?.classList.remove('show')); }
-function confirmarSheet(tit,msg,cb){
+function confirmarSheet(tit,msg,cb,rotulo){
   $('ov-tit').textContent=tit; $('ov-msg').innerHTML=msg;
   const b=$('ov-ok'), n=b.cloneNode(true); b.parentNode.replaceChild(n,b);
-  n.className='btn d'; n.textContent='Confirmar';
+  /* quando o botão leva para um caminho seguro, ele não é vermelho de perigo */
+  n.className = rotulo ? 'btn p' : 'btn d';
+  n.textContent = rotulo || 'Confirmar';
   n.onclick=()=>{ $('ov-conf').style.display='none'; cb(); };
   const c=$('ov-nao'), m=c.cloneNode(true); c.parentNode.replaceChild(m,c);
   m.textContent='Cancelar';
@@ -942,6 +944,9 @@ async function pintarFilaFotos(){
           Pode parar quando quiser — o que já subiu está salvo e o resto continua de onde parou.</p>`;
       return;
     }
+    /* cada visita à tela Enviar atualiza o inventário deste aparelho no
+       escritório — é de graça e evita ter que pedir foto de tela */
+    registrarDispositivo().catch(()=>{});
     const n = await filaFotos();
     const esp = await espacoUsado();
     const rodape = esp ? `<p style="font-size:12.5px;color:var(--text2);margin-top:10px">Espaço usado pelo app: <b>${esp}</b></p>` : '';
@@ -1080,22 +1085,66 @@ function mostrarLogin(){
   setTimeout(()=>($('lg-user').value?$('lg-pass'):$('lg-user')).focus(),150);
 }
 
+/* O que este aparelho tem guardado, em números. Vai junto com o registro do
+   dispositivo e sobe como texto — assim o escritório enxerga a situação de
+   cada celular sem precisar pedir foto de tela para o fiscal. */
+async function inventario(){
+  const inv = {};
+  try{ inv.fotosGuardadas = await dbContar('imagens'); }catch(e){}
+  try{ inv.miniaturas     = await dbContar('minis');   }catch(e){}
+  try{ inv.semArquivoAqui = (await fotosSemArquivoAqui()).length; }catch(e){}
+  try{
+    const fs = await dbGetAll('fotos');
+    inv.fichasDeFoto = fs.length;
+    inv.aindaNaNuvem = fs.filter(f=>f.enviada && f.url).length;
+  }catch(e){}
+  try{
+    if(navigator.storage && navigator.storage.estimate){
+      const e = await navigator.storage.estimate();
+      inv.espacoBytes = e.usage || 0;
+      inv.espacoLegivel = liberado(e.usage || 0);
+    }
+  }catch(e){}
+  inv.inventarioEm = new Date().toISOString();
+  return inv;
+}
+
 async function registrarDispositivo(){
   try{
     const all=await dbGetAll('dispositivos');
     const chave=ID.dispositivo+'|'+ID.nome;
     const ja=all.find(d=>d.chave===chave);
     const rec={chave, nome:ID.nome, login:ID.login, perfil:ID.perfil, equipe:ID.equipe, apelido:ID.dispositivo,
-               ultimoUso:new Date().toISOString(), app:APP_VERSION};
+               ultimoUso:new Date().toISOString(), app:APP_VERSION, ...(await inventario())};
     if(ja) await dbPut('dispositivos',{...ja,...rec}); else await dbAdd('dispositivos',rec);
   }catch(e){ console.error(e); }
 }
 function pintarQuem(){
   $('who').innerHTML = USUARIO ? `${esc(String(ID.nome).split(' ')[0])}<br>${esc(ID.equipe||NOME_PERFIL[ID.perfil]||'')}` : '';
 }
-function limparAparelho(){
+/* Este botão já apagou foto que não tinha cópia em lugar nenhum. A frase
+   "o que já foi enviado continua lá" é verdadeira e, por isso mesmo, enganosa:
+   o que NÃO foi enviado some para sempre, e era o caso de milhares de fotos.
+   Agora ele se recusa a rodar enquanto houver foto presa aqui. */
+async function limparAparelho(){
+  let presas = 0;
+  try{ presas = await dbContar('imagens'); }catch(e){ presas = -1; }
+
+  if(presas !== 0){
+    const quantas = presas > 0 ? `<b>${presas}</b> foto(s)` : 'Pode haver fotos';
+    confirmarSheet('Não dá para limpar agora',
+      `${quantas} estão guardadas só neste celular e ainda não chegaram ao escritório.
+       Limpar agora <b>apagaria essas fotos para sempre</b> — não existe cópia em outro lugar.<br><br>
+       Vá em <b>Enviar</b> e esvazie a fila de fotos primeiro. Quando o cartão
+       "Fotos guardadas neste aparelho" estiver zerado, este botão volta a funcionar.`,
+      ()=>{ ir('enviar'); }, 'Ir para Enviar');
+    return;
+  }
+
   confirmarSheet('Limpar este aparelho',
-    'Os lançamentos guardados aqui serão apagados <b>deste celular</b>. O que já foi enviado ao escritório continua lá. Continuar?',
+    `Nenhuma foto está presa aqui — tudo que este celular tirou já está no escritório.<br><br>
+     Os lançamentos guardados neste aparelho serão apagados. Eles continuam no
+     escritório e voltam sozinhos na próxima sincronização. Continuar?`,
     async()=>{
       for(const s of STORES) await dbClear(s);
       localStorage.removeItem(CFG_KEY); localStorage.removeItem(FILA_KEY); localStorage.removeItem(PULL_KEY); localStorage.removeItem('rrbapp_sessao');
