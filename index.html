@@ -282,10 +282,10 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
   <div class="kg" id="m-kpis"></div>
   <div class="card" style="padding:12px">
     <div class="f2">
-      <div class="fg" style="margin:0"><label>Situação</label><select id="m-st" onchange="renderMeus()">
+      <div class="fg" style="margin:0"><label>Situação</label><select id="m-st" onchange="meusFiltrar()">
         <option value="">Todas</option><option value="Devolvido">Devolvidos</option>
         <option value="Pendente">Pendentes</option><option value="Validado">Validados</option></select></div>
-      <div class="fg" style="margin:0"><label>Data</label><input type="date" id="m-data" onchange="renderMeus()"></div>
+      <div class="fg" style="margin:0"><label>Data</label><input type="date" id="m-data" onchange="meusFiltrar()"></div>
     </div>
     <div class="al ag" id="m-ok"><i class="ti ti-circle-check"></i><span></span></div>
     <div class="al ae" id="m-err"><i class="ti ti-alert-circle"></i><span></span></div>
@@ -303,6 +303,14 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
     <div class="al ae" id="e-err"><i class="ti ti-alert-circle"></i><span></span></div>
     <p style="font-size:13px;color:var(--text2);margin-top:12px">
       Você pode lançar furos sem internet o dia inteiro — tudo fica guardado no aparelho e sobe assim que a conexão voltar.</p>
+  </div>
+
+  <!-- Fila de FOTOS: é diferente da fila de texto acima. As fichas (furos,
+       relatórios) sobem sozinhas; as fotos são pesadas e precisam deste
+       empurrão. Foi a falta desta tela que deixou milhares de fotos presas. -->
+  <div class="card">
+    <div class="sh"><i class="ti ti-photo-up"></i>Fotos guardadas neste aparelho</div>
+    <div id="e-fotos"></div>
   </div>
   <div class="card">
     <div class="sh"><i class="ti ti-info-circle"></i>Como funciona a validação</div>
@@ -416,7 +424,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20260923-027';
+const APP_VERSION = '20261023-029';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -470,6 +478,11 @@ function initDB(){
   });
 }
 function dbGetAll(s){return new Promise((res,rej)=>{try{const r=db.transaction(s,'readonly').objectStore(s).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)}catch(e){rej(e)}})}
+/* Só as chaves, sem os bytes. É o que permite varrer milhares de fotos sem
+   trazer um gigabyte para a memória — a linha é lida uma de cada vez. */
+function dbChaves(s){return new Promise((res,rej)=>{try{const r=db.transaction(s,'readonly').objectStore(s).getAllKeys();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)}catch(e){rej(e)}})}
+function dbPeloId(s,id){return new Promise((res,rej)=>{try{const r=db.transaction(s,'readonly').objectStore(s).get(id);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)}catch(e){rej(e)}})}
+function dbContar(s){return new Promise((res,rej)=>{try{const r=db.transaction(s,'readonly').objectStore(s).count();r.onsuccess=()=>res(r.result||0);r.onerror=()=>rej(r.error)}catch(e){rej(e)}})}
 /* Busca direta pelo atalho: traz so as linhas daquele uid. */
 function dbPorIndice(s, idx, valor){return new Promise((res,rej)=>{try{
   const r=db.transaction(s,'readonly').objectStore(s).index(idx).getAll(valor);
@@ -480,8 +493,25 @@ async function dbUm(s, idx, valor){ try{ const l = await dbPorIndice(s, idx, val
    viagem ao banco para cada um; aqui vai tudo numa transação. O vínculo usado
    é o do furo, que TODA foto tem — inclusive as antigas, de antes dos
    relatórios existirem. */
-function fotosDosFuros(uids){
-  return new Promise((res,rej)=>{
+/* As miniaturas das fotos que estão na tela, e só delas. Ler o armazém inteiro
+   custava dezenas de megabytes a cada desenho num aparelho com meses de uso. */
+function minisDasFotos(uids){
+  return new Promise(res=>{
+    const mapa = new Map();
+    if(!uids.length) return res(mapa);
+    try{
+      const idx = db.transaction('minis','readonly').objectStore('minis').index('fotoUid');
+      let faltam = uids.length;
+      uids.forEach(u=>{
+        const q = idx.getAll(u);
+        const fim = ()=>{ if(--faltam === 0) res(mapa); };
+        q.onsuccess = ()=>{ const r=(q.result||[])[0]; if(r && r.mini) mapa.set(u, r.mini); fim(); };
+        q.onerror   = fim;
+      });
+    }catch(e){ res(mapa); }
+  });
+}
+function fotosDosFuros(uids){  return new Promise((res,rej)=>{
     if(!uids.length) return res([]);
     try{
       const idx = db.transaction('fotos','readonly').objectStore('fotos').index('furoUid');
@@ -497,8 +527,7 @@ function fotosDosFuros(uids){
 }
 async function fotosDe(furos){
   const uids = furos.map(f=>f.uid);
-  try{ return await fotosDosFuros(uids); }
-  catch(e){ console.warn('sem atalho em fotos', e);
+  try{ return await fotosDosFuros(uids); }  catch(e){ console.warn('sem atalho em fotos', e);
     const set = new Set(uids); return (await dbGetAll('fotos')).filter(x=>set.has(x.furoUid)); }
 }
 function _rawAdd(s,r){return new Promise((res,rej)=>{const q=db.transaction(s,'readwrite').objectStore(s).add(r);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
@@ -581,8 +610,43 @@ async function entrar(){
       pintarDiagnostico(false);
       return;
     }
-    const u=us.find(x=>(x.login||'').toLowerCase()===login);
-    if(!u || u.hash!==hashSenha(senha,u.salt)){ alerta('lg-err','Usuário ou senha incorretos.'); $('lg-pass').value=''; return; }
+    const achar = lista => lista.find(x=>(x.login||'').toLowerCase()===login);
+    const confere = x => x && x.hash === hashSenha(senha, x.salt);
+    let u = achar(us);
+
+    /* Não dá para dizer "senha errada" sem antes garantir que a lista deste
+       aparelho está em dia. Um usuário cadastrado depois da última sincronização
+       simplesmente não está aqui, e uma senha trocada no escritório ainda está
+       com o valor velho — nos dois casos a tela dizia "incorretos" para quem
+       tinha digitado tudo certo. Com internet, a lista é buscada inteira e a
+       conferência é refeita antes de acusar qualquer coisa. */
+    let refez = false, falhaRede = '';
+    if(!confere(u) && conectado() && navigator.onLine){
+      btn.innerHTML = '<i class="ti ti-loader-2"></i>Atualizando usuários...';
+      try{
+        await puxarUsuarios();
+        us = await dbGetAll('usuarios');
+        u = achar(us);
+        refez = true;
+      }catch(e){ falhaRede = e && (e.message || String(e)); console.warn('nao deu para atualizar usuarios', e); }
+    }
+
+    if(!confere(u)){
+      $('lg-pass').value = '';
+      if(!u && !refez && !navigator.onLine){
+        alerta('lg-err','Usuário não encontrado neste aparelho, e ele está <b>sem internet</b> para conferir. '
+          + 'Conecte-se e tente de novo — se o cadastro é novo, ele só chega aqui com rede.', 0);
+      } else if(!u){
+        alerta('lg-err','Usuário <b>'+esc(login)+'</b> não existe no sistema'
+          + (refez ? ' (a lista acabou de ser atualizada do escritório).' : '.')
+          + ' Confira o nome de usuário com o gestor.', 0);
+      } else {
+        alerta('lg-err','Senha incorreta'
+          + (refez ? ' — a lista foi atualizada agora e a senha continua não batendo.' : '.')
+          + (falhaRede ? ' Não deu para falar com a nuvem: '+esc(falhaRede) : ''), 0);
+      }
+      return;
+    }
     if(u.ativo===false){ alerta('lg-err','Este usuário está desativado. Procure o gestor.'); return; }
     USUARIO=u;
     ID.nome=u.nome; ID.login=u.login; ID.perfil=u.perfil||'b';
@@ -752,6 +816,30 @@ async function enviar(){
   }));
   return lote.length;
 }
+/* ---- lista de usuários, do zero ---------------------------------------
+   O `baixar()` é incremental: ele só pede o que mudou depois da última
+   sincronização. Serve para o dia a dia, mas não serve para consertar uma
+   lista furada — se o aparelho já passou do ponto em que o usuário foi
+   cadastrado, o cadastro dele nunca mais volta, e o app responde "usuário ou
+   senha incorretos" para alguém que existe. Aqui a lista de usuários vem
+   inteira, sem marcador de tempo, e por isso conserta. */
+async function puxarUsuarios(){
+  const q = `${SYNC.tabela}?select=*&org=eq.${encodeURIComponent(SYNC.org)}`
+          + `&store=eq.usuarios&order=atualizado_em.asc&limit=500`;
+  const linhas = await (await syncFetch(q, {method:'GET'})).json();
+  let n = 0;
+  for(const ln of linhas){
+    const all = await dbGetAll('usuarios');
+    const local = all.find(x => x.uid === ln.uid);
+    if(ln.deletado){ if(local) await _rawDel('usuarios', local.id); continue; }
+    /* Quem manda em usuário é o escritório: aqui a nuvem sempre vence. */
+    const rec = {...(ln.dados || {}), uid: ln.uid};
+    if(local){ rec.id = local.id; await _rawPut('usuarios', rec); }
+    else { delete rec.id; await _rawAdd('usuarios', rec); }
+    n++;
+  }
+  return n;
+}
 async function baixar(){
   let desde=localStorage.getItem(PULL_KEY)||'1970-01-01T00:00:00.000Z';
   let total=0,rodadas=0;
@@ -832,6 +920,57 @@ function pintarEnvio(){
   if(ac) ac.innerHTML = conectado()
     ? `Ligado a <b>${esc(SYNC.empresa||SYNC.org)}</b><br><span class="mono">${esc((SYNC.url||'').slice(0,44))}...</span>`
     : 'Este app ainda não foi ligado ao sistema do escritório.';
+  pintarFilaFotos();
+}
+
+/* A fila das fotos. Mostra o que está preso, deixa esvaziar e vai dizendo
+   quanto de espaço voltou — para o fiscal ver que está funcionando. */
+async function pintarFilaFotos(){
+  const box = $('e-fotos'); if(!box) return;
+  try{
+    if(DRENO.rodando || DRENO.parar){
+      const feito = DRENO.feitas + DRENO.falhas + DRENO.puladas;
+      const pct = DRENO.total ? Math.round(feito*100/DRENO.total) : 0;
+      box.innerHTML = `
+        <div style="font-size:13.5px;margin-bottom:8px">
+          Enviando <b>${feito}</b> de <b>${DRENO.total}</b>${DRENO.parar?' — parando...':''}</div>
+        <div class="barra" style="margin-bottom:10px"><div style="width:${pct}%"></div></div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:10px">
+          <b>${DRENO.feitas}</b> enviadas · <b>${liberado(DRENO.bytes)}</b> liberados${DRENO.falhas?` · <b style="color:var(--red)">${DRENO.falhas}</b> falharam`:''}</div>
+        <button class="btn" onclick="drenoParar()"><i class="ti ti-player-pause"></i>Parar por aqui</button>
+        <p style="font-size:12.5px;color:var(--text2);margin-top:10px">
+          Pode parar quando quiser — o que já subiu está salvo e o resto continua de onde parou.</p>`;
+      return;
+    }
+    const n = await filaFotos();
+    const esp = await espacoUsado();
+    if(!n){
+      box.innerHTML = `<div class="al ag show" style="margin:0"><i class="ti ti-circle-check"></i>
+        <span>Nenhuma foto presa neste aparelho. Tudo que foi tirado já está no escritório.</span></div>`
+        + (esp ? `<p style="font-size:12.5px;color:var(--text2);margin-top:10px">Espaço usado pelo app: <b>${esp}</b></p>` : '');
+      return;
+    }
+    box.innerHTML = `
+      <div class="kg" style="margin-bottom:10px">
+        <div class="kc am"><div class="kl">Fotos no aparelho</div><div class="kv">${n}</div></div>
+        <div class="kc"><div class="kl">Espaço usado</div><div class="kv" style="font-size:17px">${esp||'—'}</div></div>
+      </div>
+      <button class="btn p" onclick="enviarPendentes()"><i class="ti ti-cloud-up"></i>Enviar as ${n} fotos guardadas</button>
+      <p style="font-size:12.5px;color:var(--text2);margin-top:10px">
+        São todas as fotos deste aparelho, de todos os dias — não só as de hoje. Conforme cada
+        uma chega ao escritório, ela sai daqui e o celular fica mais leve.
+        <b>Faça no Wi‑Fi</b>: são muitas fotos.</p>`;
+  }catch(err){
+    box.innerHTML = `<div class="al ae show" style="margin:0"><i class="ti ti-alert-circle"></i>
+      <span>Não deu para ler a fila: ${esc(err.message||err)}</span></div>`;
+  }
+}
+async function espacoUsado(){
+  try{
+    if(!navigator.storage || !navigator.storage.estimate) return '';
+    const e = await navigator.storage.estimate();
+    return liberado(e.usage || 0);
+  }catch(e){ return ''; }
 }
 
 /* ------------------------------ PAREAMENTO ------------------------------ */
@@ -861,6 +1000,8 @@ async function baixarUsuarios(){
   const b=$('lg-baixar'); b.disabled=true; b.innerHTML='<i class="ti ti-loader-2"></i>Baixando...';
   try{
     if(!conectado()) throw new Error('Este app não tem a conexão gravada. Toque 5 vezes em “versão” para configurar.');
+    /* lista inteira, não só o que mudou — é isso que conserta aparelho atrasado */
+    await puxarUsuarios();
     await baixar();
     const us=await dbGetAll('usuarios');
     await preencherListas();
@@ -1902,7 +2043,7 @@ async function seqRender(){
     const mapaF = new Map();
     todasFotos.forEach(x=>{ mapaF.set(x.furoUid+'|'+x.tipo, x); });
     /* miniaturas: uns 20 KB cada, contra 1 MB da foto inteira */
-    const mapaI = new Map((await dbGetAll('minis')).map(i=>[i.fotoUid, i.mini]));
+    const mapaI = await minisDasFotos(todasFotos.map(f=>f.uid));
 
     let nFotos = 0, semEnd = 0, aEnviar = 0, semGps = 0;
     const cartoes = furos.map(f=>{
@@ -2127,6 +2268,149 @@ async function seqEnviarFotos(silencioso){
   if(falhas) alerta('s-aviso', `<b>${ok}</b> foto(s) enviadas, <b>${falhas}</b> falharam. Toque em enviar de novo para tentar as que faltam.`, 0);
   else if(!silencioso) alerta('s-ok', `<b>${ok}</b> foto(s) enviadas ao escritório.`);
   return falhas === 0;
+}
+
+/* ====================================================================== */
+/*          ESVAZIAR A FILA DE FOTOS — TODAS, NÃO SÓ AS DE HOJE           */
+/* ---------------------------------------------------------------------- */
+/* O envio acima só alcança as fotos do relatório que está aberto. Quando o
+   dia virava, as fotos do dia anterior ficavam presas no aparelho: os bytes
+   continuavam aqui, sem caminho nenhum para subir. Foi assim que quatro
+   celulares acumularam quase dez mil fotos e passaram a travar.
+   Aqui a varredura é pelo armazém de imagens, de chave em chave: cada foto é
+   lida sozinha, enviada e descartada do aparelho antes da próxima. A memória
+   não cresce, e o espaço vai sendo devolvido durante o trabalho. */
+
+let DRENO = {rodando:false, parar:false, feitas:0, puladas:0, falhas:0, total:0, bytes:0, erro:''};
+
+function drenoAtivo(){ return DRENO.rodando; }
+function drenoParar(){ DRENO.parar = true; pintarEnvio(); }
+
+/* Quanto está preso aqui, sem abrir nenhuma imagem. */
+async function filaFotos(){
+  try{
+    const chaves = await dbChaves('imagens');
+    return chaves.length;
+  }catch(e){ return 0; }
+}
+
+async function enviarPendentes(){
+  if(DRENO.rodando) return;
+  limpa('e-err','e-ok');
+  if(!conectado()){ alerta('e-err','Este app não está ligado ao sistema do escritório.'); return; }
+  if(!navigator.onLine){ alerta('e-err','Sem internet. Ligue no Wi‑Fi e tente de novo.'); return; }
+
+  DRENO = {rodando:true, parar:false, feitas:0, puladas:0, falhas:0, total:0, bytes:0, erro:''};
+  pintarEnvio();
+  try{
+    const chaves = await dbChaves('imagens');
+    DRENO.total = chaves.length;
+    /* um mapa uid→foto, lido uma vez; as fichas são texto, não pesam */
+    const fichas = new Map((await dbGetAll('fotos')).map(f=>[f.uid, f]));
+    let seguidas = 0;
+
+    for(const id of chaves){
+      if(DRENO.parar) break;
+      if(!navigator.onLine){ DRENO.erro = 'A internet caiu. O que já subiu está salvo — toque de novo quando voltar.'; break; }
+
+      let im = null;
+      try{ im = await dbPeloId('imagens', id); }catch(e){}
+      if(!im){ DRENO.puladas++; continue; }
+
+      const fo = fichas.get(im.fotoUid);
+      /* imagem órfã (o furo foi apagado): não tem para onde ir, só ocupa lugar */
+      if(!fo){ await _rawDel('imagens', id); DRENO.puladas++; DRENO.bytes += tamanhoDe(im); continue; }
+
+      /* já enviada antes: os bytes aqui são peso morto, a nuvem tem a foto */
+      if(fo.enviada && fo.url){
+        await garantirMini(fo, im);
+        await _rawDel('imagens', id);
+        DRENO.puladas++; DRENO.bytes += tamanhoDe(im);
+        if(DRENO.feitas % 5 === 0) pintarEnvio();
+        continue;
+      }
+
+      try{
+        const subiu = await subirUmaFoto(fo, im);
+        if(subiu){
+          await _rawDel('imagens', id);
+          DRENO.feitas++; DRENO.bytes += tamanhoDe(im); seguidas = 0;
+        } else { DRENO.falhas++; seguidas++; }
+      }catch(err){
+        console.warn('falhou', err);
+        DRENO.falhas++; seguidas++;
+      }
+      /* uma falha aqui e ali é rede ruim: pula e segue. Dez SEGUIDAS é outra
+         coisa — aí parar é o certo, senão gasta dado à toa. */
+      if(seguidas >= 10){
+        DRENO.erro = 'Dez envios seguidos falharam. Parei aqui para não gastar à toa — '
+                   + 'as fotos continuam guardadas, toque de novo num sinal melhor.';
+        break;
+      }
+      if((DRENO.feitas + DRENO.falhas) % 3 === 0) pintarEnvio();
+    }
+  }catch(err){ DRENO.erro = String(err && err.message || err); }
+  DRENO.rodando = false;
+  pintarEnvio();
+  try{ if(TELA==='seq') await seqRender(); }catch(e){}
+  if(DRENO.erro) alerta('e-err', esc(DRENO.erro), 0);
+  else alerta('e-ok', `<b>${DRENO.feitas}</b> foto(s) enviadas · <b>${liberado(DRENO.bytes)}</b> liberados no aparelho`
+    + (DRENO.falhas ? ` · <b>${DRENO.falhas}</b> falharam, toque de novo` : ''), 0);
+}
+
+function tamanhoDe(im){
+  return ((im && im.original ? im.original.length : 0) + (im && im.carimbada ? im.carimbada.length : 0)) * 0.75;
+}
+function liberado(b){
+  if(b > 1048576*900) return (b/1073741824).toFixed(2)+' GB';
+  if(b > 1024*900)    return Math.round(b/1048576)+' MB';
+  return Math.max(1,Math.round(b/1024))+' KB';
+}
+/* A miniatura é o que sobra no aparelho depois que os bytes saem: ela segura a
+   tela e o relatório do campo. Nunca descartar imagem sem ela existir. */
+async function garantirMini(fo, im){
+  try{
+    const ja = await dbUm('minis','fotoUid',fo.uid);
+    if(ja && ja.mini) return true;
+    const fonte = (im && (im.carimbada || im.original)) || fo.urlMini || fo.url;
+    if(!fonte) return false;
+    return !!(await miniGravar(fo.uid, fonte));
+  }catch(e){ return false; }
+}
+/* Envia uma foto e devolve true só quando ela está mesmo guardada na nuvem. */
+async function subirUmaFoto(fo, im){
+  let carimbada = im.carimbada || im.original;
+  if(!carimbada) return false;
+
+  /* completa o endereço se der, sem segurar a fila */
+  if(!fo.enderecoOk && fo.lat != null){
+    try{
+      const end = enderecoDoCache(fo.lat, fo.lng) || await buscarEndereco(fo.lat, fo.lng);
+      let mapa = mapaDoCache(fo.lat, fo.lng);
+      if(!mapa){ try{ mapa = await miniMapa(fo.lat, fo.lng); }catch(e){ mapa = null; } }
+      carimbada = await carimbar(im.original || im.carimbada, {
+        dataHora:fo.dataHora, lat:fo.lat, lng:fo.lng, alt:fo.alt,
+        heading:fo.heading, direcao:fo.direcao, indice:fo.indice, endereco:end, mapa});
+      fo = {...fo, endereco:end, enderecoOk:true, temMapa:!!mapa};
+    }catch(e){ /* sem endereço o carimbo vale do mesmo jeito */ }
+  }
+
+  const caminho = fo.arquivo || stCaminho(fo);
+  const url = await stEnviar(caminho, carimbada);
+  if(!url) return false;
+
+  let urlMini = fo.urlMini || '', arquivoMini = fo.arquivoMini || '';
+  try{
+    arquivoMini = stCaminhoMini(fo);
+    urlMini = await stEnviar(arquivoMini, await encolher(carimbada, MINI_LARGURA, 0.66));
+  }catch(e){ console.warn('sem miniatura na nuvem', e); }
+
+  /* a miniatura local precisa existir ANTES de jogar os bytes fora */
+  await garantirMini({...fo, urlMini}, {carimbada});
+
+  await dbPut('fotos', {...fo, enviada:true, url, urlMini, arquivoMini, arquivo:caminho,
+    enviadaEm:new Date().toISOString()});
+  return true;
 }
 
 async function carregarJsPDF(){
@@ -2618,12 +2902,19 @@ function relSituacao(furos, r){
 }
 const REL_CLS = {'Validado':'s-ok','Devolvido':'s-rd','Pendente':'s-wn','Vazio':'s-wn'};
 
+const MEUS_PASSO = 25;
+let MEUS_LIMITE = MEUS_PASSO;
+function meusMais(){ MEUS_LIMITE += MEUS_PASSO; renderMeus(); }
+/* trocar de filtro recomeça a contagem: senão o filtro novo abre no fim da lista */
+function meusFiltrar(){ MEUS_LIMITE = MEUS_PASSO; renderMeus(); }
+
 async function renderMeus(){
   try{
-    /* as capas da lista usam a miniatura: a foto inteira ali era peso puro */
-    const [furos, rels, fotos, minis] = await Promise.all([
-      dbGetAll('furos'), dbGetAll('relatorios'), dbGetAll('fotos'), dbGetAll('minis')]);
-    const mapI = new Map(minis.map(i=>[i.fotoUid,i.mini]));
+    /* as capas da lista usam a miniatura: a foto inteira ali era peso puro.
+       E só as DUAS capas de cada linha são lidas — ler o aparelho inteiro de
+       miniaturas para mostrar duas por relatório era o que fechava o app. */
+    const [furos, rels, fotos] = await Promise.all([
+      dbGetAll('furos'), dbGetAll('relatorios'), dbGetAll('fotos')]);
     const meu = x => !ID.nome || !x.lancadoPor || x.lancadoPor===ID.nome || x.dispositivo===ID.dispositivo;
 
     const porRel = new Map();
@@ -2648,8 +2939,7 @@ async function renderMeus(){
       const fts = fs.flatMap(f=>porFuro.get(f.uid) || []);
       const sit = relSituacao(fs, r);
       const devolvidos = fs.filter(f=>f.status==='Devolvido');
-      const capas = fts.slice(0,2).map(x=> mapI.get(x.uid) || x.urlMini || x.url || '');
-      return {r, fs, sit, devolvidos, nFotos:fts.length, capas};
+      return {r, fs, sit, devolvidos, nFotos:fts.length, capasDe:fts.slice(0,2), capas:[]};
     }).sort((a,b)=>{
       const pa = a.sit==='Devolvido'?0:1, pb = b.sit==='Devolvido'?0:1;
       return pa-pb || String(b.r.data||'').localeCompare(String(a.r.data||'')) || (b.r.seq||0)-(a.r.seq||0);
@@ -2676,7 +2966,16 @@ async function renderMeus(){
     if(!lista.length){ $('m-lista').innerHTML = `<div class="empty"><i class="ti ti-clipboard-off"></i>
       Nenhum relatório com esses filtros.</div>`; return; }
 
-    $('m-lista').innerHTML = lista.map(l=>{
+    /* Desenha um punhado por vez. Com cem dias lançados, montar a lista
+       inteira de uma vez era o que travava e fechava o app — e ninguém rola
+       trezentos relatórios: o que interessa está sempre no começo. */
+    const pagina = lista.slice(0, MEUS_LIMITE);
+    const faltam = lista.length - pagina.length;
+    /* e só as miniaturas das capas que vão aparecer agora */
+    const mapI = await minisDasFotos(pagina.flatMap(l=>l.capasDe.map(x=>x.uid)));
+    pagina.forEach(l=>{ l.capas = l.capasDe.map(x=> mapI.get(x.uid) || x.urlMini || x.url || ''); });
+
+    $('m-lista').innerHTML = pagina.map(l=>{
       const r = l.r;
       const motivos = [...new Set(l.devolvidos.map(f=>f.motivoDevolucao).filter(Boolean))];
       const podeEditar = l.sit !== 'Validado';
@@ -2689,7 +2988,7 @@ async function renderMeus(){
         ${r.corrigido?`<div class="al aw show" style="margin:10px 12px 0"><i class="ti ti-pencil"></i>
           <span>Correção enviada por <b>${esc(r.corrigidoPor||'')}</b> em
           ${r.corrigidoEm?new Date(r.corrigidoEm).toLocaleString('pt-BR'):''}${r.conferido?' — já conferida pelo escritório':' — aguardando conferência'}</span></div>`:''}
-        <div class="th">${[0,1].map(i=>l.capas[i]?`<img src="${l.capas[i]}">`:`<div class="vz">sem foto</div>`).join('')}</div>
+        <div class="th">${[0,1].map(i=>l.capas[i]?`<img loading="lazy" decoding="async" src="${l.capas[i]}">`:`<div class="vz">sem foto</div>`).join('')}</div>
         <div class="ib">
           <div class="ln"><span>Equipe</span><b>${esc(r.equipe||'—')}</b></div>
           <div class="ln"><span>Furos / fotos</span><b>${l.fs.length}</b> furo(s) · <b>${l.nFotos}</b> foto(s)</div>
@@ -2707,7 +3006,11 @@ async function renderMeus(){
           <button class="btn sm d" style="width:100%;margin-top:7px" onclick="excluirRelatorio('${r.uid}')">
             <i class="ti ti-trash"></i>Excluir este relatório</button>
         </div></div>`;
-    }).join('');
+    }).join('') + (faltam ? `
+      <button class="btn o" style="width:100%;margin-top:12px" onclick="meusMais()">
+        <i class="ti ti-chevron-down"></i>Mostrar mais ${Math.min(faltam, MEUS_PASSO)} de ${faltam} restantes</button>
+      <div style="text-align:center;font-size:12px;color:var(--text2);margin:8px 0 2px">
+        mostrando ${pagina.length} de ${lista.length} relatórios</div>` : '');
   }catch(err){
     console.error(err);
     $('m-lista').innerHTML = `<div class="al ae show"><i class="ti ti-alert-circle"></i><span>Erro ao listar: ${esc(err.message||err)}</span></div>`;
