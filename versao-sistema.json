@@ -1,6 +1,6 @@
 {
   "systemVersion": "20260930-039",
   "exeVersion": "1.1.0",
-  "publicadoEm": "2026-10-23T14:26:07Z",
-  "notas": "App avisa quando a foto foi tirada em outro celular, em vez de dizer que ja esta no escritorio"
+  "publicadoEm": "2026-10-23T16:55:32Z",
+  "notas": "Limpar aparelho passa a recusar quando ha foto nao enviada, e cada celular informa o que tem guardado"
 }
