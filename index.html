@@ -116,6 +116,8 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
 .acard.o .ai{background:var(--amber-bg);color:var(--amber)}
 .acard.g .ai{background:var(--green-bg);color:var(--green)}
 .acard.n .ai{background:var(--bg3);color:var(--text2)}
+.acard.d{border-color:var(--red);border-width:1.5px}
+.acard.d .ai{background:var(--red);color:#fff}
 .saudacao{font-size:19px;font-weight:800;margin:4px 0 2px}
 .saudacao+.sub{font-size:13px;color:var(--text2);margin-bottom:14px}
 .nav div{padding:9px 4px 8px;text-align:center;color:var(--text3);font-size:11px;font-weight:700;position:relative}
@@ -424,7 +426,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261023-031';
+const APP_VERSION = '20261023-032';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -656,7 +658,7 @@ async function entrar(){
     salvarCfg();
     await registrarDispositivo();
     await preencherListas();
-    pintarQuem(); ir('inicio');
+    pintarQuem(); ir('inicio'); ligarAutoEsvaziar();
   }catch(err){ alerta('lg-err','Erro ao entrar: '+esc(err.message||err)); }
   finally{ btn.disabled=false; btn.innerHTML='<i class="ti ti-login-2"></i>Entrar'; }
 }
@@ -2382,6 +2384,38 @@ let DRENO = {rodando:false, parar:false, feitas:0, puladas:0, falhas:0, total:0,
 function drenoAtivo(){ return DRENO.rodando; }
 function drenoParar(){ DRENO.parar = true; pintarEnvio(); }
 
+/* Wi-Fi ou não. Numa rede de dados, esvaziar 4.500 fotos sozinho queimaria o
+   pacote do fiscal — então só começa sozinho quando dá para ter certeza. */
+function noWifi(){
+  const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if(!c) return false;                       /* na dúvida, não começa */
+  if(c.type) return c.type === 'wifi' || c.type === 'ethernet';
+  if(c.saveData) return false;
+  return false;
+}
+
+/* O esvaziador se vira sozinho: ninguém precisa lembrar de apertar botão em
+   quatro celulares. Só roda no Wi-Fi, só com o app aberto, e sempre dá para
+   parar. */
+let AUTO_T = null, AUTO_LIGADO = false;
+async function autoEsvaziar(motivo){
+  try{
+    if(DRENO.rodando || !navigator.onLine || !conectado() || !noWifi()) return;
+    if(!(await filaFotos())) return;
+    console.log('esvaziando sozinho —', motivo);
+    await enviarPendentes();
+  }catch(e){ console.warn('auto', e); }
+}
+function ligarAutoEsvaziar(){
+  clearTimeout(AUTO_T);
+  AUTO_T = setTimeout(()=>autoEsvaziar('abertura'), 12000);
+  if(AUTO_LIGADO) return;               /* os relógios só uma vez */
+  AUTO_LIGADO = true;
+  setInterval(()=>{ if(!document.hidden) autoEsvaziar('de tempos em tempos'); }, 180000);
+  const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if(c && c.addEventListener) c.addEventListener('change', ()=>setTimeout(()=>autoEsvaziar('entrou no Wi-Fi'), 4000));
+}
+
 /* Quanto está preso aqui, sem abrir nenhuma imagem. */
 async function filaFotos(){
   try{
@@ -2935,6 +2969,21 @@ async function inicioRender(){
        <div class="kc gn"><div class="kl">Total de relatórios</div><div class="kv">${r.rels.length}</div></div>`;
 
     const cartoes = [];
+    /* fotos presas vêm antes de tudo: é o que falta chegar no escritório */
+    const presas = await filaFotos();
+    if(presas){
+      cartoes.push(`<div class="acard ${drenoAtivo()?'o':'d'}" onclick="${drenoAtivo()?`ir('enviar')`:'enviarPendentes()'}">
+        <div class="ai"><i class="ti ti-cloud-up"></i></div>
+        <div><div class="at">${drenoAtivo()
+            ? `Enviando as fotos — ${DRENO.feitas} de ${DRENO.total}`
+            : `${presas} foto(s) ainda não chegaram ao escritório`}</div>
+          <div class="as">${drenoAtivo()
+            ? 'Está subindo sozinho. Toque para acompanhar ou parar.'
+            : (noWifi()
+               ? 'No Wi‑Fi o envio começa sozinho em instantes. Toque para começar agora.'
+               : '<b>Ligue o Wi‑Fi</b> e o envio começa sozinho. Toque para enviar mesmo sem Wi‑Fi.')}</div></div>
+        <div class="ac"><i class="ti ti-chevron-right"></i></div></div>`);
+    }
     cartoes.push(`<div class="acard p" onclick="novoRelatorioFotografico()">
       <div class="ai"><i class="ti ti-camera-plus"></i></div>
       <div><div class="at">Novo Relatório Fotográfico</div>
@@ -3212,10 +3261,13 @@ async function baixarRelatorio(uid){
       /* o endereço das fotos vai sendo completado de fundo, sem atrapalhar */
       setTimeout(completarCarimbos, 8000);
       setInterval(()=>{ if(!document.hidden && navigator.onLine) completarCarimbos(2); }, 45000);
+      ligarAutoEsvaziar();
+      registrarDispositivo().catch(()=>{});
     } else {
       mostrarLogin(); TELA='login';
     }
-    window.addEventListener('online', ()=>{ pintarChip(); sincronizar(true); setTimeout(completarCarimbos, 3000); });
+    window.addEventListener('online', ()=>{ pintarChip(); sincronizar(true); setTimeout(completarCarimbos, 3000);
+      setTimeout(()=>autoEsvaziar('a internet voltou'), 6000); });
     window.addEventListener('offline', pintarChip);
   }catch(err){
     document.querySelector('.wrap').insertAdjacentHTML('afterbegin',
