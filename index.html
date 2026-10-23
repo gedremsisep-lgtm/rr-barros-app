@@ -426,7 +426,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261023-032';
+const APP_VERSION = '20261023-033';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -951,7 +951,10 @@ async function pintarFilaFotos(){
     registrarDispositivo().catch(()=>{});
     const n = await filaFotos();
     const esp = await espacoUsado();
-    const rodape = esp ? `<p style="font-size:12.5px;color:var(--text2);margin-top:10px">Espaço usado pelo app: <b>${esp}</b></p>` : '';
+    /* o nome deste aparelho em cima de tudo: com vários celulares em campo e
+       apelidos repetidos, era impossível saber em qual se estava procurando */
+    const rodape = `<p style="font-size:12.5px;color:var(--text2);margin-top:10px">
+        Este aparelho se chama <b>${esc(ID.dispositivo||'(sem nome)')}</b>${esp?` · espaço usado pelo app: <b>${esp}</b>`:''}</p>`;
     if(!n){
       /* Fila vazia tem DOIS significados muito diferentes, e dizer "está tudo
          no escritório" no caso errado já escondeu milhares de fotos:
@@ -981,7 +984,7 @@ async function pintarFilaFotos(){
       <p style="font-size:12.5px;color:var(--text2);margin-top:10px">
         São todas as fotos deste aparelho, de todos os dias — não só as de hoje. Conforme cada
         uma chega ao escritório, ela sai daqui e o celular fica mais leve.
-        <b>Faça no Wi‑Fi</b>: são muitas fotos.</p>`;
+        ${noWifi() ? 'No Wi‑Fi isso começa sozinho.' : '<b>Ligue o Wi‑Fi</b>: são muitas fotos.'}</p>` + rodape;
   }catch(err){
     box.innerHTML = `<div class="al ae show" style="margin:0"><i class="ti ti-alert-circle"></i>
       <span>Não deu para ler a fila: ${esc(err.message||err)}</span></div>`;
