@@ -1,8 +1,8 @@
 {
-  "appVersion": "20261023-033",
+  "appVersion": "20261023-034",
   "apkVersionCode": 6,
   "apkVersionName": "1.5",
   "apkUrl": "https://gedremsisep-lgtm.github.io/rr-barros-app/RR-Barros.apk",
-  "publicadoEm": "2026-10-23T19:24:01Z",
-  "notas": "Tela Enviar mostra o nome do proprio aparelho, para achar o celular certo entre varios"
+  "publicadoEm": "2026-10-23T19:38:08Z",
+  "notas": "O app passa a se atualizar sozinho ao abrir, sem depender de alguem tocar na faixa"
 }

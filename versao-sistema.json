@@ -1,6 +1,6 @@
 {
   "systemVersion": "20260930-039",
   "exeVersion": "1.1.0",
-  "publicadoEm": "2026-10-23T19:24:01Z",
-  "notas": "Tela Enviar mostra o nome do proprio aparelho, para achar o celular certo entre varios"
+  "publicadoEm": "2026-10-23T19:38:08Z",
+  "notas": "O app passa a se atualizar sozinho ao abrir, sem depender de alguem tocar na faixa"
 }
