@@ -3,6 +3,6 @@
   "apkVersionCode": 6,
   "apkVersionName": "1.5",
   "apkUrl": "https://gedremsisep-lgtm.github.io/rr-barros-app/RR-Barros.apk",
-  "publicadoEm": "2026-10-23T19:38:08Z",
-  "notas": "O app passa a se atualizar sozinho ao abrir, sem depender de alguem tocar na faixa"
+  "publicadoEm": "2026-10-31T11:21:26Z",
+  "notas": "Sistema: remover a validacao de um furo, de uma selecao ou do dia, liberando a edicao de novo"
 }
