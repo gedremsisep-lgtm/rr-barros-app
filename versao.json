@@ -1,8 +1,8 @@
 {
-  "appVersion": "20261104-035",
+  "appVersion": "20261106-036",
   "apkVersionCode": 6,
   "apkVersionName": "1.5",
   "apkUrl": "https://gedremsisep-lgtm.github.io/rr-barros-app/RR-Barros.apk",
-  "publicadoEm": "2026-11-04T13:35:55Z",
-  "notas": "Conserta o envio automatico: nao depende mais do celular informar que esta no Wi-Fi"
+  "publicadoEm": "2026-11-06T14:41:25Z",
+  "notas": "Para de contar como falha a foto que foi tirada em outro celular, e diz isso com todas as letras"
 }
