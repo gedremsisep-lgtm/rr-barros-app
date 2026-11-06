@@ -435,7 +435,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261104-035';
+const APP_VERSION = '20261106-036';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -2350,8 +2350,23 @@ async function seqEnviarFotos(silencioso){
   if(!navigator.onLine){ alerta('s-err','Sem internet. As fotos ficam guardadas e sobem quando a conexão voltar.'); return false; }
   const furos = await seqFuros();
   const fotos = await fotosDe(furos);
-  const pend = fotos.filter(x=>!x.enviada);
-  if(!pend.length){ if(!silencioso) alerta('s-ok','Todas as fotos deste dia já estão no escritório.'); return true; }
+  const todasPend = fotos.filter(x=>!x.enviada);
+  if(!todasPend.length){ if(!silencioso) alerta('s-ok','Todas as fotos deste dia já estão no escritório.'); return true; }
+
+  /* Foto registrada em OUTRO aparelho não tem arquivo aqui. Tentar enviá-la
+     daqui é tentar enviar o nada: a barra corria até o fim e o app anunciava
+     "314 falharam", como se fosse problema de rede. Não é — e assustava à toa.
+     Agora elas são separadas antes de começar, e ditas pelo nome. */
+  const comBytes = await uidsComBytes();
+  const pend = todasPend.filter(f=>comBytes.has(f.uid));
+  const foraDaqui = todasPend.length - pend.length;
+  if(!pend.length){
+    limpa('s-prog');
+    alerta('s-aviso', `Não há nada para enviar deste aparelho. As <b>${foraDaqui}</b> foto(s)
+      que faltam foram registradas em outro celular — o arquivo delas está lá, não aqui.
+      Procure o gestor: apertar enviar nesta tela não muda nada.`, 0);
+    return false;
+  }
   let ok = 0, falhas = 0;
   for(let i=0;i<pend.length;i++){
     const fo = pend[i];
@@ -2401,7 +2416,12 @@ async function seqEnviarFotos(silencioso){
   }
   limpa('s-prog');
   await seqRender();
-  if(falhas) alerta('s-aviso', `<b>${ok}</b> foto(s) enviadas, <b>${falhas}</b> falharam. Toque em enviar de novo para tentar as que faltam.`, 0);
+  const nota = foraDaqui
+    ? ` Outras <b>${foraDaqui}</b> foto(s) deste relatório foram registradas em outro celular e só podem ser enviadas de lá.`
+    : '';
+  if(falhas) alerta('s-aviso', `<b>${ok}</b> foto(s) enviadas, <b>${falhas}</b> falharam.
+    Toque em enviar de novo para tentar as que faltam.${nota}`, 0);
+  else if(foraDaqui) alerta('s-aviso', `<b>${ok}</b> foto(s) enviadas ao escritório.${nota}`, 0);
   else if(!silencioso) alerta('s-ok', `<b>${ok}</b> foto(s) enviadas ao escritório.`);
   return falhas === 0;
 }
