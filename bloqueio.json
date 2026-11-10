@@ -1,0 +1,9 @@
+{
+  "bloqueado": true,
+  "desde": "2026-11-10",
+  "motivo": "Sistema bloqueado por ordem do gestor.",
+  "mensagem": "Sistema temporariamente indisponível. Procure o gestor.",
+  "liberados": ["juvenil.lopes"],
+  "salvarArquivos": false,
+  "observacao": "Para liberar: trocar bloqueado para false. Quem estiver em liberados continua entrando e salvando arquivos mesmo com bloqueado=true."
+}

@@ -435,7 +435,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261106-036';
+const APP_VERSION = '20261110-037';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -605,6 +605,12 @@ function verSenha(id,btn){
   btn.innerHTML=`<i class="ti ti-eye${ver?'-off':''}"></i>`;
 }
 async function entrar(){
+  if(navigator.onLine) await conferirTrava();
+  if(TRAVA.bloqueado && !travaLiberaUsuario(($('lg-user').value||'').trim())){
+    pintarTrava();
+    alerta('lg-err', esc(TRAVA.mensagem));
+    return;
+  }
   limpa('lg-err');
   const login=$('lg-user').value.trim().toLowerCase(), senha=$('lg-pass').value;
   if(!login||!senha){ alerta('lg-err','Informe o usuário e a senha.'); return; }
@@ -2346,6 +2352,7 @@ function SRV_OPCOES(sel){
 /* -------------------- envio das fotos + PDF do relatório ---------------- */
 async function seqEnviarFotos(silencioso){
   limpa('s-err','s-ok','s-aviso');
+  if(travado()){ alerta('s-err', esc(TRAVA.mensagem)); return false; }
   if(!conectado()){ alerta('s-err','O app não está ligado ao sistema do escritório.'); return false; }
   if(!navigator.onLine){ alerta('s-err','Sem internet. As fotos ficam guardadas e sobem quando a conexão voltar.'); return false; }
   const furos = await seqFuros();
@@ -2478,6 +2485,7 @@ function podeEnviarAuto(){
 let AUTO_T = null, AUTO_LIGADO = false;
 async function autoEsvaziar(motivo){
   try{
+    if(travado()) return;
     if(DRENO.rodando || !navigator.onLine || !conectado() || !podeEnviarAuto()) return;
     if(!(await filaFotos())) return;
     console.log('esvaziando sozinho —', motivo);
@@ -2505,6 +2513,7 @@ async function filaFotos(){
 async function enviarPendentes(){
   if(DRENO.rodando) return;
   limpa('e-err','e-ok');
+  if(travado()){ alerta('e-err', esc(TRAVA.mensagem)); return; }
   if(!conectado()){ alerta('e-err','Este app não está ligado ao sistema do escritório.'); return; }
   if(!navigator.onLine){ alerta('e-err','Sem internet. Ligue no Wi‑Fi e tente de novo.'); return; }
 
@@ -2635,6 +2644,7 @@ async function carregarJsPDF(){
 /* Monta o relatório no mesmo padrão do documento: 8 blocos por página A4,
    cada bloco com 2 furos, 4 fotos e a tabela Furo / Bairro-Rua / Serviço. */
 async function seqGerarPDF(compartilhar){
+  if(travado()){ try{ alerta('s-err', esc(TRAVA.mensagem)); }catch(e){} return; }
   limpa('s-err','s-ok','s-aviso');
   try{
     const furos = await seqFuros();
@@ -2765,6 +2775,7 @@ async function seqLinhas(){
   return linhas;
 }
 async function seqPlanilha(){
+  if(travado()){ try{ alerta('s-err', esc(TRAVA.mensagem)); }catch(e){} return; }
   limpa('s-err','s-ok','s-aviso');
   try{
     const linhas = await seqLinhas();
@@ -2877,6 +2888,58 @@ async function editarFuro(id){
    partir do endereço abaixo, que é só de leitura. Quem abre pelo navegador
    recebe o mesmo aviso, e basta recarregar a página. */
 const CANAL_APP = 'https://gedremsisep-lgtm.github.io/rr-barros-app/';
+
+/* ------------------------------ TRAVA ---------------------------------
+   Bloqueio do sistema por ordem do gestor. A chave é o arquivo bloqueio.json
+   no canal: enquanto ele disser bloqueado, o app não abre para ninguém e não
+   envia nada. Nasce TRAVADO nesta versão: sem conseguir ler o canal, continua
+   travado — é o lado seguro para uma ordem de bloqueio.
+   Para liberar basta trocar bloqueado para false no canal; nenhum celular
+   precisa ser tocado. */
+const TRAVA_KEY = 'rrbapp_trava';
+let TRAVA = { bloqueado:true, mensagem:'Sistema temporariamente indisponível. Procure o gestor.', liberados:[] };
+try{
+  const g = JSON.parse(localStorage.getItem(TRAVA_KEY) || 'null');
+  if(g && typeof g.bloqueado === 'boolean') TRAVA = {...TRAVA, ...g};
+}catch(e){}
+
+function travaLiberaUsuario(login){
+  const l = String(login||'').trim().toLowerCase();
+  return (TRAVA.liberados||[]).some(x=>String(x).trim().toLowerCase() === l);
+}
+function travado(){
+  if(!TRAVA.bloqueado) return false;
+  return !(USUARIO && travaLiberaUsuario(ID.login));
+}
+async function conferirTrava(){
+  try{
+    const r = await fetch(CANAL_APP+'bloqueio.json?t='+Date.now(), {cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j = await r.json();
+    TRAVA = { bloqueado: j.bloqueado !== false,
+              mensagem: j.mensagem || TRAVA.mensagem,
+              liberados: Array.isArray(j.liberados) ? j.liberados : [] };
+    try{ localStorage.setItem(TRAVA_KEY, JSON.stringify(TRAVA)); }catch(e){}
+  }catch(e){ /* sem resposta do canal: fica como está, que é travado */ }
+  pintarTrava();
+  return TRAVA.bloqueado;
+}
+function pintarTrava(){
+  const velha = document.getElementById('trava-tela');
+  if(!travado()){ if(velha) velha.remove(); return; }
+  if(velha) return;
+  const d = document.createElement('div');
+  d.id = 'trava-tela';
+  d.style.cssText = 'position:fixed;inset:0;z-index:99999;background:var(--bg,#12121a);'
+    + 'display:flex;flex-direction:column;align-items:center;justify-content:center;'
+    + 'text-align:center;padding:30px 26px;gap:14px';
+  d.innerHTML = `<i class="ti ti-lock" style="font-size:54px;color:var(--red,#e5484d)"></i>
+    <div style="font-size:21px;font-weight:800">Acesso bloqueado</div>
+    <div style="font-size:15px;line-height:1.5;max-width:320px;color:var(--text2,#9aa)">${esc(TRAVA.mensagem)}</div>
+    <div style="font-size:12.5px;color:var(--text3,#777);margin-top:6px">
+      Nada foi apagado. Os lançamentos e as fotos continuam guardados neste aparelho.</div>`;
+  document.body.appendChild(d);
+}
 let ATUALIZACAO = null;
 function noAplicativo(){ return typeof AndroidRRB !== 'undefined'; }
 
@@ -3319,6 +3382,7 @@ async function enviarCorrecao(uid){
 
 /* PDF de um relatório escolhido na lista */
 async function baixarRelatorio(uid){
+  if(travado()){ try{ alerta('s-err', esc(TRAVA.mensagem)); }catch(e){} return; }
   const rels = await dbGetAll('relatorios');
   const r = rels.find(x=>x.uid===uid); if(!r) return;
   const antes = REL_ATUAL;
@@ -3389,6 +3453,9 @@ async function baixarRelatorio(uid){
       setInterval(()=>{ if(!document.hidden && navigator.onLine) completarCarimbos(2); }, 45000);
       ligarAutoEsvaziar();
       registrarDispositivo().catch(()=>{});
+      pintarTrava();
+      if(navigator.onLine) conferirTrava();
+      setInterval(()=>{ if(!document.hidden && navigator.onLine) conferirTrava(); }, 300000);
     } else {
       mostrarLogin(); TELA='login';
     }
