@@ -1,6 +1,6 @@
 {
-  "systemVersion": "20261110-041",
+  "systemVersion": "20261111-042",
   "exeVersion": "1.1.0",
-  "publicadoEm": "2026-11-10T17:42:00Z",
-  "notas": "Bloqueio do sistema por ordem do gestor: sem acesso e sem saida de arquivos ate segunda ordem"
+  "publicadoEm": "2026-11-11T18:59:32Z",
+  "notas": "Desbloqueia o sistema e cria limitacoes avulsas, cada uma ligada e desligada pelo canal"
 }
