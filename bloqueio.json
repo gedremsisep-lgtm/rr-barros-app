@@ -1,9 +1,32 @@
 {
-  "bloqueado": true,
-  "desde": "2026-11-10",
-  "motivo": "Sistema bloqueado por ordem do gestor.",
+  "_comentario": "CHAVES DO SISTEMA RR BARROS. Troque um valor, salve e suba este arquivo: todos os celulares e o escritorio obedecem em poucos minutos, sem instalar nada. Nada aqui apaga dado.",
+
+  "bloqueado": false,
   "mensagem": "Sistema temporariamente indisponível. Procure o gestor.",
   "liberados": ["juvenil.lopes"],
-  "salvarArquivos": false,
-  "observacao": "Para liberar: trocar bloqueado para false. Quem estiver em liberados continua entrando e salvando arquivos mesmo com bloqueado=true."
+
+  "usuariosBloqueados": [],
+  "salvarArquivos": true,
+  "somenteLeitura": false,
+  "lancarFuros": true,
+  "enviarFotos": true,
+  "excluir": true,
+  "limparAparelho": true,
+  "horario": null,
+  "congeladoAte": "",
+
+  "_como_usar": {
+    "bloqueado": "true = ninguem entra, nem no app nem no sistema. Quem esta em 'liberados' continua entrando.",
+    "mensagem": "o texto que aparece na tela de cadeado.",
+    "liberados": "logins que passam por cima de TODAS as limitacoes.",
+    "usuariosBloqueados": "barra so estas pessoas, ex: [\"diogo.rrbarros\"]. O resto trabalha normal.",
+    "salvarArquivos": "false = ninguem gera PDF, planilha, impressao nem backup.",
+    "somenteLeitura": "true = da para ver tudo, mas nao lancar, editar, validar nem excluir.",
+    "lancarFuros": "false = o campo nao abre relatorio novo nem tira foto. O que ja existe continua visivel.",
+    "enviarFotos": "false = pausa o envio de fotos ao escritorio. As fotos ficam guardadas no celular.",
+    "excluir": "false = ninguem apaga furo nem relatorio.",
+    "limparAparelho": "false = desliga o botao que esvazia o celular.",
+    "horario": "ex: {\"inicio\":\"06:00\",\"fim\":\"19:00\",\"dias\":[1,2,3,4,5]} - fora disso o app nao abre. 0=domingo, 6=sabado. null = sem limite de horario.",
+    "congeladoAte": "ex: \"2026-10-31\" - nada daquela data para tras pode ser alterado. Fecha o mes."
+  }
 }
