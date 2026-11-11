@@ -435,7 +435,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261111-038';
+const APP_VERSION = '20261111-039';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -1003,6 +1003,7 @@ async function pintarFilaFotos(){
         <div class="kc am"><div class="kl">Fotos no aparelho</div><div class="kv">${n}</div></div>
         <div class="kc"><div class="kl">Espaço usado</div><div class="kv" style="font-size:17px">${esp||'—'}</div></div>
       </div>
+      ${await linhasPorDia()}
       <button class="btn p" onclick="enviarPendentes()"><i class="ti ti-cloud-up"></i>Enviar as ${n} fotos guardadas</button>
       <p style="font-size:12.5px;color:var(--text2);margin-top:10px">
         São todas as fotos deste aparelho, de todos os dias — não só as de hoje. Conforme cada
@@ -1037,6 +1038,24 @@ async function fotosSemArquivoAqui(){
     const temBytes = await uidsComBytes();
     return pendentes.filter(f=>!temBytes.has(f.uid));
   }catch(e){ return []; }
+}
+/* Quais dias ainda têm foto guardada neste aparelho. É a resposta para
+   "o relatório do dia tal dá para recuperar daqui?" — sem depender de
+   ninguém conferir no escritório. */
+async function linhasPorDia(){
+  try{
+    const inv = await inventario();
+    const dias = Object.keys(inv.guardadasPorDia||{}).sort().reverse();
+    if(!dias.length) return '';
+    const linhas = dias.slice(0,12).map(d=>
+      `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px">
+         <span>${fmtData(d)}</span><b>${inv.guardadasPorDia[d]} foto(s)</b></div>`).join('');
+    const resto = dias.length > 12 ? `<div style="font-size:12px;color:var(--text2);margin-top:4px">
+      e mais ${dias.length-12} dia(s)</div>` : '';
+    return `<div style="background:var(--bg3);border-radius:10px;padding:10px 12px;margin-bottom:10px">
+      <div style="font-size:12.5px;color:var(--text2);margin-bottom:4px">Guardadas neste aparelho, por dia:</div>
+      ${linhas}${resto}</div>`;
+  }catch(e){ return ''; }
 }
 async function espacoUsado(){
   try{
@@ -1127,6 +1146,20 @@ async function inventario(){
     const fs = await dbGetAll('fotos');
     inv.fichasDeFoto = fs.length;
     inv.aindaNaNuvem = fs.filter(f=>f.enviada && f.url).length;
+    /* Dia a dia: quantas fotos de cada data ainda têm o arquivo AQUI e
+       quantas estão só como ficha. Sem isso só dava para saber o total do
+       aparelho, e a pergunta que importa é sempre "o dia tal dá para
+       recuperar?". */
+    const comBytes = await uidsComBytes();
+    const guard = {}, falta = {};
+    for(const f of fs){
+      const dia = String(f.dataHora||'').slice(0,10);
+      if(!dia || f.deletado) continue;
+      if(comBytes.has(f.uid))                 guard[dia] = (guard[dia]||0)+1;
+      else if(!f.enviada && !(f.url||''))     falta[dia] = (falta[dia]||0)+1;
+    }
+    inv.guardadasPorDia = guard;
+    inv.semArquivoPorDia = falta;
   }catch(e){}
   try{
     if(navigator.storage && navigator.storage.estimate){
