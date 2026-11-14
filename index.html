@@ -351,7 +351,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
       diagnóstico deste aparelho. Ele leva só os números e a situação de cada dia,
       <b>nenhuma foto e nenhuma senha</b>.</p>
     <button class="btn p" onclick="suporteSolicitar()"><i class="ti ti-headset"></i>Solicitar suporte</button>
-    <button class="btn" style="margin-top:8px" onclick="suporteExportar()"><i class="ti ti-file-download"></i>Exportar diagnóstico (arquivo)</button>
+    <button class="btn" style="margin-top:8px" onclick="suporteExportar()"><i class="ti ti-share"></i>Exportar / enviar pelo WhatsApp</button>
     <div id="a-sup-box" style="margin-top:10px"></div>
     <div class="al ag" id="a-sup-ok"><i class="ti ti-circle-check"></i><span></span></div>
     <div class="al ae" id="a-sup-err"><i class="ti ti-alert-circle"></i><span></span></div>
@@ -448,7 +448,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261114-040';
+const APP_VERSION = '20261114-041';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -1150,16 +1150,80 @@ async function montarDiagnostico(){
   return d;
 }
 
-function suporteExportar(){
+/* Baixar o arquivo obrigava a caçar a pasta Downloads no celular e anexar na
+   mão — e aí ninguém conseguia mandar. Aqui o diagnóstico sai pela folha de
+   compartilhar do Android, que é onde o WhatsApp aparece. Vai como .txt
+   porque o WhatsApp recusa alguns formatos de documento. */
+async function suporteExportar(){
   limpa('a-sup-ok','a-sup-err');
-  montarDiagnostico().then(d=>{
-    const blob = new Blob([JSON.stringify(d, null, 2)], {type:'application/json'});
-    const nome = 'diagnostico_' + (ID.dispositivo||'aparelho').replace(/\W+/g,'-') + '_' + hoje() + '.json';
+  try{
+    const d = await montarDiagnostico();
+    const texto = diagnosticoEmTexto(d);
+    const nome = 'diagnostico_' + (ID.dispositivo||'aparelho').replace(/\W+/g,'-') + '_' + hoje() + '.txt';
+    const blob = new Blob([texto], {type:'text/plain'});
+    const arquivo = new File([blob], nome, {type:'text/plain'});
+    if(navigator.canShare && navigator.canShare({files:[arquivo]})){
+      try{
+        await navigator.share({files:[arquivo], title:nome, text:'Diagnóstico do aparelho — RR Barros'});
+        alerta('a-sup-ok','Escolha o WhatsApp e o contato do suporte.', 0);
+        return;
+      }catch(e){ if(e && e.name === 'AbortError') return; }
+    }
+    /* sem folha de compartilhar: tenta abrir o WhatsApp com o resumo em texto */
+    if(navigator.share){
+      try{
+        await navigator.share({title:nome, text: resumoCurto(d)});
+        alerta('a-sup-ok','Resumo enviado. Para o arquivo completo, use "Baixar".', 0);
+        return;
+      }catch(e){ if(e && e.name === 'AbortError') return; }
+    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = nome; a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
-    alerta('a-sup-ok','Arquivo <b>'+esc(nome)+'</b> gerado. Mande para o suporte.', 0);
-  }).catch(e=> alerta('a-sup-err','Não deu para montar o diagnóstico: '+esc(e.message||e)));
+    alerta('a-sup-ok','Arquivo <b>'+esc(nome)+'</b> salvo em Downloads.', 0);
+  }catch(e){ alerta('a-sup-err','Não deu para montar o diagnóstico: '+esc(e.message||e)); }
+}
+
+/* O mesmo diagnóstico em forma de texto: abre em qualquer celular, dá para
+   ler no próprio WhatsApp e continua tendo os números inteiros no fim. */
+function diagnosticoEmTexto(d){
+  const L = [];
+  L.push('DIAGNOSTICO DO APARELHO - RR BARROS');
+  L.push('Aparelho: ' + (d.aparelho||'(sem apelido)'));
+  L.push('Conta...: ' + (d.conta||'') + '  (' + (d.nome||'') + ')');
+  L.push('Equipe..: ' + (d.equipe||''));
+  L.push('Versao..: ' + d.app);
+  L.push('Quando..: ' + new Date(d.quando).toLocaleString('pt-BR'));
+  const i = d.inventario || {};
+  L.push('');
+  L.push('RESUMO');
+  L.push('  Fotos com arquivo neste aparelho: ' + (i.fotosGuardadas != null ? i.fotosGuardadas : '?'));
+  L.push('  Fotos so como ficha (sem arquivo): ' + (i.semArquivoAqui != null ? i.semArquivoAqui : '?'));
+  L.push('  Miniaturas: ' + (i.miniaturas != null ? i.miniaturas : '?'));
+  L.push('  Espaco usado pelo app: ' + (i.espacoLegivel || '?'));
+  L.push('  Na fila de texto: ' + (d.fila != null ? d.fila : '?'));
+  L.push('');
+  L.push('RELATORIO POR RELATORIO');
+  L.push('  data        fotos  arquivo-aqui  miniatura  na-nuvem  sem-nada');
+  for(const r of (d.relatorios||[])){
+    const dt = (r.data || r.uid || '').toString().slice(0,10).padEnd(11);
+    L.push('  ' + dt + String(r.fotos).padStart(5) + String(r.comArquivoAqui).padStart(13)
+           + String(r.comMiniatura).padStart(11) + String(r.naNuvem).padStart(10)
+           + String(r.semNada).padStart(10));
+  }
+  L.push('');
+  L.push('--- dados completos para o suporte ---');
+  L.push(JSON.stringify(d));
+  return L.join('\n');
+}
+function resumoCurto(d){
+  const i = d.inventario || {};
+  const linhas = (d.relatorios||[]).slice(0,10)
+    .map(r=>`${(r.data||'').slice(0,10)}: ${r.fotos} fotos, ${r.comArquivoAqui} com arquivo aqui`);
+  return 'Diagnostico RR Barros\nAparelho: ' + (d.aparelho||'') + ' | conta ' + (d.conta||'')
+    + ' | app ' + d.app + '\nGuardadas: ' + (i.fotosGuardadas||0)
+    + ' | sem arquivo: ' + (i.semArquivoAqui||0) + ' | espaco: ' + (i.espacoLegivel||'?')
+    + '\n' + linhas.join('\n');
 }
 
 async function suporteSolicitar(){
