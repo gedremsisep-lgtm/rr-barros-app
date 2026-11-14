@@ -348,10 +348,12 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
     <div class="sh"><i class="ti ti-lifebuoy"></i>Suporte</div>
     <p style="font-size:13px;color:var(--text2);margin:0 0 10px">
       Se alguma coisa não bate — relatório sem foto, envio que não anda — mande o
-      diagnóstico deste aparelho. Ele leva só os números e a situação de cada dia,
-      <b>nenhuma foto e nenhuma senha</b>.</p>
+      diagnóstico deste aparelho. O <b>arquivo completo</b> leva o registro de cada
+      furo e de cada foto, um por um, para o suporte analisar sem adivinhar nada —
+      mas <b>sem nenhuma foto dentro e sem nenhuma senha</b>.</p>
     <button class="btn p" onclick="suporteSolicitar()"><i class="ti ti-headset"></i>Solicitar suporte</button>
-    <button class="btn" style="margin-top:8px" onclick="suporteExportar()"><i class="ti ti-share"></i>Exportar / enviar pelo WhatsApp</button>
+    <button class="btn" style="margin-top:8px" onclick="suporteExportar(true)"><i class="ti ti-file-code-2"></i>Enviar arquivo completo (JSON)</button>
+    <button class="btn" style="margin-top:8px" onclick="suporteExportar(false)"><i class="ti ti-share"></i>Enviar só o resumo (texto)</button>
     <div id="a-sup-box" style="margin-top:10px"></div>
     <div class="al ag" id="a-sup-ok"><i class="ti ti-circle-check"></i><span></span></div>
     <div class="al ae" id="a-sup-err"><i class="ti ti-alert-circle"></i><span></span></div>
@@ -448,7 +450,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261114-041';
+const APP_VERSION = '20261114-042';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -1150,33 +1152,74 @@ async function montarDiagnostico(){
   return d;
 }
 
+/* Diagnóstico COMPLETO: todos os registros do aparelho, um por um, para dar
+   para analisar sem adivinhar nada. Sai sem os bytes das fotos (seriam
+   gigabytes), sem senha e sem a chave da nuvem. */
+async function montarDiagnosticoCompleto(){
+  const d = await montarDiagnostico();
+  d.completo = true;
+  try{
+    const comBytes = await uidsComBytes();
+    const minis = new Set((await dbGetAll('minis')).map(m=>m.fotoUid));
+    const [furos, rels, fotos, equipes, servicos, disp, hist] = await Promise.all([
+      dbGetAll('furos'), dbGetAll('relatorios'), dbGetAll('fotos'),
+      dbGetAll('equipes'), dbGetAll('servicos'), dbGetAll('dispositivos'), dbGetAll('historico')]);
+    const limpa = o => { const x = {...o}; delete x.id; return x; };
+    d.dados = {
+      relatorios: rels.map(limpa),
+      furos: furos.map(limpa),
+      equipes: equipes.map(limpa),
+      servicos: servicos.map(limpa),
+      dispositivos: disp.map(limpa),
+      historico: hist.slice(-500).map(limpa),
+      /* a ficha de cada foto, mais a verdade sobre onde o arquivo está */
+      fotos: fotos.map(f=>({ ...limpa(f),
+        url: (f.url||'').slice(0,120), urlMini: (f.urlMini||'').slice(0,120),
+        _arquivoAqui: comBytes.has(f.uid), _miniAqui: minis.has(f.uid) })),
+      /* usuários sem nada de senha */
+      usuarios: (await dbGetAll('usuarios')).map(u=>({
+        uid:u.uid, login:u.login, nome:u.nome, perfil:u.perfil, equipe:u.equipe||'',
+        ativo:u.ativo !== false, temSenha: !!(u.hash) })),
+      fila: lerFila()
+    };
+    d.imagensGuardadas = await dbChaves('imagens').then(ks=>ks.length).catch(()=>-1);
+  }catch(e){ d.erroCompleto = String(e && e.message || e); }
+  return d;
+}
+
 /* Baixar o arquivo obrigava a caçar a pasta Downloads no celular e anexar na
    mão — e aí ninguém conseguia mandar. Aqui o diagnóstico sai pela folha de
    compartilhar do Android, que é onde o WhatsApp aparece. Vai como .txt
    porque o WhatsApp recusa alguns formatos de documento. */
-async function suporteExportar(){
+async function suporteExportar(completo){
   limpa('a-sup-ok','a-sup-err');
   try{
-    const d = await montarDiagnostico();
-    const texto = diagnosticoEmTexto(d);
-    const nome = 'diagnostico_' + (ID.dispositivo||'aparelho').replace(/\W+/g,'-') + '_' + hoje() + '.txt';
+    alerta('a-sup-ok', completo ? 'Montando o arquivo completo...' : 'Montando o diagnóstico...', 0);
+    const d = completo ? await montarDiagnosticoCompleto() : await montarDiagnostico();
+    const texto = completo ? JSON.stringify(d) : diagnosticoEmTexto(d);
+    const base = 'diagnostico_' + (completo ? 'completo_' : '')
+               + (ID.dispositivo||'aparelho').replace(/\W+/g,'-') + '_' + hoje();
+    const mb = (texto.length/1048576).toFixed(1);
+    /* tenta .json de verdade; alguns WhatsApp recusam esse tipo, e aí vai
+       o mesmo conteúdo como .json.txt, que passa sempre */
+    const tentativas = completo
+      ? [[base + '.json', 'application/json'], [base + '.json.txt', 'text/plain']]
+      : [[base + '.txt', 'text/plain']];
+    for(const [nome, tipo] of tentativas){
+      const arquivo = new File([new Blob([texto], {type:tipo})], nome, {type:tipo});
+      if(navigator.canShare && navigator.canShare({files:[arquivo]})){
+        try{
+          await navigator.share({files:[arquivo], title:nome,
+            text:'Diagnóstico ' + (completo?'completo ':'') + 'do aparelho — RR Barros'});
+          limpa('a-sup-ok');
+          alerta('a-sup-ok','Arquivo de <b>'+mb+' MB</b> pronto. Escolha o WhatsApp e o contato do suporte.', 0);
+          return;
+        }catch(e){ if(e && e.name === 'AbortError'){ limpa('a-sup-ok'); return; } }
+      }
+    }
+    const nome = tentativas[tentativas.length-1][0];
     const blob = new Blob([texto], {type:'text/plain'});
-    const arquivo = new File([blob], nome, {type:'text/plain'});
-    if(navigator.canShare && navigator.canShare({files:[arquivo]})){
-      try{
-        await navigator.share({files:[arquivo], title:nome, text:'Diagnóstico do aparelho — RR Barros'});
-        alerta('a-sup-ok','Escolha o WhatsApp e o contato do suporte.', 0);
-        return;
-      }catch(e){ if(e && e.name === 'AbortError') return; }
-    }
-    /* sem folha de compartilhar: tenta abrir o WhatsApp com o resumo em texto */
-    if(navigator.share){
-      try{
-        await navigator.share({title:nome, text: resumoCurto(d)});
-        alerta('a-sup-ok','Resumo enviado. Para o arquivo completo, use "Baixar".', 0);
-        return;
-      }catch(e){ if(e && e.name === 'AbortError') return; }
-    }
+    /* sem folha de compartilhar: cai no download */
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = nome; a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
