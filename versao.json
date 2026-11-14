@@ -1,8 +1,8 @@
 {
-  "appVersion": "20261114-041",
+  "appVersion": "20261114-042",
   "apkVersionCode": 6,
   "apkVersionName": "1.5",
   "apkUrl": "https://gedremsisep-lgtm.github.io/rr-barros-app/RR-Barros.apk",
-  "publicadoEm": "2026-11-14T13:16:00Z",
-  "notas": "Diagnostico passa a sair pelo compartilhar do celular, para mandar direto no WhatsApp"
+  "publicadoEm": "2026-11-14T13:26:08Z",
+  "notas": "Exportacao completa em JSON: cada furo e cada foto, com a situacao do arquivo em cada uma"
 }
