@@ -1,6 +1,6 @@
 {
   "systemVersion": "20261111-042",
   "exeVersion": "1.1.0",
-  "publicadoEm": "2026-11-14T12:53:47Z",
-  "notas": "Suporte no app: exportar diagnostico do aparelho e pedir suporte, com acoes limitadas a uma lista"
+  "publicadoEm": "2026-11-14T13:16:00Z",
+  "notas": "Diagnostico passa a sair pelo compartilhar do celular, para mandar direto no WhatsApp"
 }

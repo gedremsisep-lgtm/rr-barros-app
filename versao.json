@@ -1,8 +1,8 @@
 {
-  "appVersion": "20261114-040",
+  "appVersion": "20261114-041",
   "apkVersionCode": 6,
   "apkVersionName": "1.5",
   "apkUrl": "https://gedremsisep-lgtm.github.io/rr-barros-app/RR-Barros.apk",
-  "publicadoEm": "2026-11-14T12:53:47Z",
-  "notas": "Suporte no app: exportar diagnostico do aparelho e pedir suporte, com acoes limitadas a uma lista"
+  "publicadoEm": "2026-11-14T13:16:00Z",
+  "notas": "Diagnostico passa a sair pelo compartilhar do celular, para mandar direto no WhatsApp"
 }
