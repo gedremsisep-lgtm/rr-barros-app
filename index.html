@@ -343,6 +343,19 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
     <div class="brow" style="margin-top:9px"><button class="btn" onclick="sair()"><i class="ti ti-logout"></i>Sair desta conta</button></div>
     <div class="al ag" id="a-ok"><i class="ti ti-circle-check"></i><span></span></div>
   </div>
+
+  <div class="card">
+    <div class="sh"><i class="ti ti-lifebuoy"></i>Suporte</div>
+    <p style="font-size:13px;color:var(--text2);margin:0 0 10px">
+      Se alguma coisa não bate — relatório sem foto, envio que não anda — mande o
+      diagnóstico deste aparelho. Ele leva só os números e a situação de cada dia,
+      <b>nenhuma foto e nenhuma senha</b>.</p>
+    <button class="btn p" onclick="suporteSolicitar()"><i class="ti ti-headset"></i>Solicitar suporte</button>
+    <button class="btn" style="margin-top:8px" onclick="suporteExportar()"><i class="ti ti-file-download"></i>Exportar diagnóstico (arquivo)</button>
+    <div id="a-sup-box" style="margin-top:10px"></div>
+    <div class="al ag" id="a-sup-ok"><i class="ti ti-circle-check"></i><span></span></div>
+    <div class="al ae" id="a-sup-err"><i class="ti ti-alert-circle"></i><span></span></div>
+  </div>
   <div class="card">
     <div class="sh"><i class="ti ti-photo-cog"></i>Qualidade das fotos</div>
     <div class="fg"><label>Tamanho enviado</label><select id="a-qual" onchange="salvarQualidade()">
@@ -435,7 +448,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261111-039';
+const APP_VERSION = '20261114-040';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -1065,6 +1078,203 @@ async function espacoUsado(){
   }catch(e){ return ''; }
 }
 
+/* ============================== SUPORTE ================================
+   Quando um relatório chega sem foto, a pergunta é sempre a mesma: o que
+   existe DENTRO deste aparelho? Daqui não dá para ver. Este bloco responde
+   isso de duas formas: um arquivo que o fiscal manda, e um canal em que o
+   suporte pede ações — só as da lista abaixo, nunca código solto. */
+
+const SUP_KEY = 'rrbapp_suporte';
+const SUP_HORAS = 24;
+/* O que o suporte pode mandar fazer. Nada fora desta lista roda, por mais
+   que venha escrito no comando: o canal é público e um aparelho não pode
+   virar porta de entrada para qualquer coisa. */
+const SUP_ACOES = ['inventario','reenviar','refazerMinis','sincronizar',
+                   'detalharRelatorio','enviarAmostra','limparOrfaos'];
+
+function supEstado(){
+  try{ return JSON.parse(localStorage.getItem(SUP_KEY) || '{}'); }catch(e){ return {}; }
+}
+function supGravar(e){ try{ localStorage.setItem(SUP_KEY, JSON.stringify(e)); }catch(x){} }
+function supAtivo(){
+  const e = supEstado();
+  return !!(e.ate && new Date(e.ate).getTime() > Date.now());
+}
+function supChave(){ return (ID.dispositivo||'?') + '|' + (ID.login||'?'); }
+
+/* Tudo o que importa sobre este aparelho, sem uma única foto dentro. */
+async function montarDiagnostico(){
+  const d = { versaoDiag:1, quando:new Date().toISOString(), app:APP_VERSION,
+              aparelho:ID.dispositivo||'', conta:ID.login||'', nome:ID.nome||'',
+              equipe:ID.equipe||'', chave:supChave() };
+  try{ d.inventario = await inventario(); }catch(e){ d.erroInventario = String(e); }
+  try{
+    d.contagem = {};
+    for(const st of STORES){ try{ d.contagem[st] = await dbContar(st); }catch(e){ d.contagem[st] = -1; } }
+  }catch(e){}
+  try{
+    const [furos, rels, fotos] = await Promise.all([dbGetAll('furos'), dbGetAll('relatorios'), dbGetAll('fotos')]);
+    const comBytes = await uidsComBytes();
+    const minis = new Set((await dbGetAll('minis')).map(m=>m.fotoUid));
+    const porRel = new Map();
+    for(const f of fotos){
+      if(f.deletado) continue;
+      const r = f.relatorioUid || '(sem relatorio)';
+      if(!porRel.has(r)) porRel.set(r, {uid:r, fotos:0, comArquivoAqui:0, comMiniatura:0, naNuvem:0, semNada:0});
+      const x = porRel.get(r);
+      x.fotos++;
+      if(comBytes.has(f.uid)) x.comArquivoAqui++;
+      if(minis.has(f.uid))    x.comMiniatura++;
+      if(f.enviada && f.url)  x.naNuvem++;
+      if(!comBytes.has(f.uid) && !(f.enviada && f.url)) x.semNada++;
+    }
+    for(const r of rels){
+      const x = porRel.get(r.uid);
+      if(x){ x.data = r.data; x.equipe = r.equipe; x.status = r.status || ''; }
+      x && (x.furos = furos.filter(f=>f.relatorioUid===r.uid).length);
+    }
+    d.relatorios = [...porRel.values()].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')));
+    /* uma amostra de fichas, para ver o formato do que ficou gravado */
+    d.amostraFotos = fotos.slice(0,6).map(f=>({
+      uid:f.uid, dia:String(f.dataHora||'').slice(0,10), tipo:f.tipo, furoUid:f.furoUid,
+      enviada:!!f.enviada, temUrl:!!(f.url||''), temMiniLocal:minis.has(f.uid),
+      temArquivoAqui:comBytes.has(f.uid), arquivo:f.arquivo||'', dispositivo:f.dispositivo||'' }));
+  }catch(e){ d.erroRelatorios = String(e && e.message || e); }
+  try{
+    d.fila = lerFila().length;
+    d.sync = { url:(SYNC.url||'').slice(0,40), org:SYNC.org, tabela:SYNC.tabela };  /* sem a chave */
+    d.rede = tipoDeRede(); d.online = !!navigator.onLine;
+    d.trava = { bloqueado: !!TRAVA.bloqueado, salvarArquivos: TRAVA.salvarArquivos !== false };
+    d.dreno = { feitas:DRENO.feitas, falhas:DRENO.falhas, puladas:DRENO.puladas, erro:DRENO.erro||'' };
+  }catch(e){}
+  return d;
+}
+
+function suporteExportar(){
+  limpa('a-sup-ok','a-sup-err');
+  montarDiagnostico().then(d=>{
+    const blob = new Blob([JSON.stringify(d, null, 2)], {type:'application/json'});
+    const nome = 'diagnostico_' + (ID.dispositivo||'aparelho').replace(/\W+/g,'-') + '_' + hoje() + '.json';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = nome; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+    alerta('a-sup-ok','Arquivo <b>'+esc(nome)+'</b> gerado. Mande para o suporte.', 0);
+  }).catch(e=> alerta('a-sup-err','Não deu para montar o diagnóstico: '+esc(e.message||e)));
+}
+
+async function suporteSolicitar(){
+  limpa('a-sup-ok','a-sup-err');
+  if(!conectado()){ alerta('a-sup-err','Este app não está ligado ao sistema do escritório.'); return; }
+  if(!navigator.onLine){ alerta('a-sup-err','Sem internet. Ligue no Wi‑Fi e toque de novo.'); return; }
+  try{
+    const d = await montarDiagnostico();
+    await supEnviar('diagnostico', d);
+    const ate = new Date(Date.now() + SUP_HORAS*3600*1000).toISOString();
+    supGravar({ate, desde:new Date().toISOString(), feitos:[]});
+    alerta('a-sup-ok','Diagnóstico enviado. O suporte pode agir neste aparelho pelas próximas '
+      + SUP_HORAS + ' horas — deixe o app aberto e com internet.', 0);
+    pintarSuporte();
+    supBuscarComandos();
+  }catch(e){ alerta('a-sup-err','Não deu para enviar: '+esc(e.message||e)); }
+}
+
+async function supEnviar(tipo, conteudo){
+  const linha = [{ uid:'sup_'+tipo+'_'+supChave().replace(/\W+/g,'_')+'_'+Date.now(),
+    org:SYNC.org, store:'suporte', deletado:false, atualizado_em:new Date().toISOString(),
+    dados:{ tipo, chave:supChave(), aparelho:ID.dispositivo||'', conta:ID.login||'',
+            app:APP_VERSION, quando:new Date().toISOString(), conteudo } }];
+  await syncFetch(SYNC.tabela, {method:'POST',
+    headers:{Prefer:'resolution=merge-duplicates,return=minimal'}, body:JSON.stringify(linha)});
+}
+
+function pintarSuporte(){
+  const box = $('a-sup-box'); if(!box) return;
+  if(!supAtivo()){ box.innerHTML = ''; return; }
+  const e = supEstado();
+  box.innerHTML = `<div class="al aw show" style="margin:0"><i class="ti ti-headset"></i>
+    <span>Suporte ligado neste aparelho até <b>${new Date(e.ate).toLocaleString('pt-BR')}</b>.
+    <span class="st s-wn" style="margin-left:6px;cursor:pointer" onclick="suporteDesligar()">Desligar agora</span></span></div>`;
+}
+function suporteDesligar(){
+  supGravar({}); pintarSuporte();
+  alerta('a-sup-ok','Suporte desligado neste aparelho.');
+}
+
+/* Busca o que o suporte pediu. Executa só o que está em SUP_ACOES e devolve
+   o resultado pelo mesmo caminho. */
+async function supBuscarComandos(){
+  if(!supAtivo() || !navigator.onLine || !conectado()) return;
+  try{
+    const q = `${SYNC.tabela}?select=*&org=eq.${encodeURIComponent(SYNC.org)}`
+            + `&store=eq.suporte_cmd&order=atualizado_em.desc&limit=20`;
+    const linhas = await (await syncFetch(q, {method:'GET'})).json();
+    const est = supEstado(); const feitos = est.feitos || [];
+    for(const ln of linhas){
+      const c = ln.dados || {};
+      if(feitos.includes(ln.uid)) continue;
+      if(c.alvo && c.alvo !== supChave() && c.alvo !== (ID.dispositivo||'')) continue;
+      if(c.expiraEm && new Date(c.expiraEm).getTime() < Date.now()) continue;
+      if(!SUP_ACOES.includes(c.acao)){
+        await supEnviar('resultado', {comando:ln.uid, acao:c.acao, recusado:'ação fora da lista permitida'});
+        feitos.push(ln.uid); continue;
+      }
+      let res;
+      try{ res = await supExecutar(c.acao, c.args || {}); }
+      catch(err){ res = {erro:String(err && err.message || err)}; }
+      await supEnviar('resultado', {comando:ln.uid, acao:c.acao, resultado:res});
+      feitos.push(ln.uid);
+    }
+    supGravar({...est, feitos: feitos.slice(-60)});
+  }catch(e){ console.warn('suporte', e); }
+}
+
+async function supExecutar(acao, args){
+  if(acao === 'inventario')   return await montarDiagnostico();
+  if(acao === 'sincronizar'){ await sincronizar(true); return {ok:true, fila:lerFila().length}; }
+  if(acao === 'reenviar'){    await enviarPendentes(); return {feitas:DRENO.feitas, falhas:DRENO.falhas, erro:DRENO.erro||''}; }
+  if(acao === 'limparOrfaos'){
+    const fichas = new Set((await dbGetAll('fotos')).map(f=>f.uid));
+    let n = 0;
+    for(const id of await dbChaves('imagens')){
+      const im = await dbPeloId('imagens', id);
+      if(im && !fichas.has(im.fotoUid)){ await _rawDel('imagens', id); n++; }
+    }
+    return {orfasRemovidas:n};
+  }
+  if(acao === 'refazerMinis'){
+    const fotos = await dbGetAll('fotos');
+    let n = 0;
+    for(const f of fotos.slice(0, args.limite || 200)){
+      const im = await dbUm('imagens','fotoUid',f.uid);
+      const fonte = (im && (im.carimbada || im.original)) || f.urlMini || f.url;
+      if(!fonte) continue;
+      if(await miniGravar(f.uid, fonte)) n++;
+    }
+    return {miniaturasRefeitas:n};
+  }
+  if(acao === 'detalharRelatorio'){
+    const alvo = args.relatorioUid || '';
+    const fotos = (await dbGetAll('fotos')).filter(f=>f.relatorioUid === alvo);
+    const comBytes = await uidsComBytes();
+    const minis = new Set((await dbGetAll('minis')).map(m=>m.fotoUid));
+    return { relatorioUid:alvo, fotos:fotos.length,
+      detalhe: fotos.slice(0, args.limite || 40).map(f=>({
+        uid:f.uid, tipo:f.tipo, furo:f.furoNum, dia:String(f.dataHora||'').slice(0,10),
+        arquivoAqui:comBytes.has(f.uid), miniAqui:minis.has(f.uid),
+        enviada:!!f.enviada, url:(f.url||'').slice(0,80), dispositivo:f.dispositivo||'' })) };
+  }
+  if(acao === 'enviarAmostra'){
+    /* sobe uma foto específica para o suporte conseguir olhar o arquivo */
+    const uid = args.fotoUid || '';
+    const im = await dbUm('imagens','fotoUid',uid);
+    if(!im) return {uid, temArquivo:false};
+    const dado = im.carimbada || im.original;
+    const url = await stEnviar('suporte/' + uid + '.jpg', dado);
+    return {uid, temArquivo:true, bytes:Math.round((dado||'').length*0.75), url};
+  }
+  return {erro:'ação desconhecida'};
+}
+
 /* ------------------------------ PAREAMENTO ------------------------------ */
 /* --------------------- CONFIGURAÇÃO (quem instala) ---------------------- */
 let _toques=0, _toqueT=null;
@@ -1262,6 +1472,7 @@ function ir(t){
          <span class="mono">${esc(USUARIO.login)}</span> · ${esc(NOME_PERFIL[USUARIO.perfil]||'')}</span>` : '—';
     $('a-disp').value=ID.dispositivo; $('a-qual').value=String(ID.qualidade||1000);
     if($('a-envio')) $('a-envio').value = politicaEnvio();
+    pintarSuporte();
     pintarGpsAjustes();
     preencherEquipes('a-eq'); $('a-eq').value=ID.equipe; pintarEnvio(); pintarVersao(); }
 
@@ -3592,6 +3803,8 @@ async function baixarRelatorio(uid){
       setInterval(()=>{ if(!document.hidden && navigator.onLine) completarCarimbos(2); }, 45000);
       ligarAutoEsvaziar();
       registrarDispositivo().catch(()=>{});
+      setTimeout(supBuscarComandos, 15000);
+      setInterval(()=>{ if(!document.hidden) supBuscarComandos(); }, 60000);
       pintarTrava();
       if(navigator.onLine) conferirTrava();
       setInterval(()=>{ if(!document.hidden && navigator.onLine) conferirTrava(); }, 300000);
