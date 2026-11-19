@@ -450,7 +450,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261114-042';
+const APP_VERSION = '20261119-043';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -564,6 +564,63 @@ function novoUid(){ return (window.crypto&&crypto.randomUUID) ? crypto.randomUUI
   : 'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,10); }
 async function dbAdd(s,d){ const r={...d,_ts:Date.now(),_user:ID.nome||'campo'}; if(!r.uid) r.uid=novoUid();
   const id=await _rawAdd(s,r); fila(s,r.uid,false); return id; }
+
+/* A ficha da foto e os bytes da imagem numa transação só.
+   Antes eram três gravações separadas — ficha, imagem, miniatura — e o app
+   morria entre a primeira e a segunda num celular apertado de memória.
+   O que sobrava era uma ficha de foto sem foto nenhuma: ela sincronizava
+   para a nuvem e para os outros aparelhos, e dali em diante o sistema
+   jurava que a foto existia enquanto o arquivo não existia em lugar nenhum.
+   Foi assim que milhares de fotos viraram fantasma.
+   Agora ou grava tudo, ou não grava nada. */
+function gravarFotoCompleta(ficha, imagem, mini){
+  return new Promise((res, rej)=>{
+    let tx;
+    try{ tx = db.transaction(['fotos','imagens','minis'], 'readwrite'); }
+    catch(e){ return rej(e); }
+    let uidFinal = ficha.uid;
+    tx.oncomplete = ()=> res(uidFinal);
+    tx.onerror    = ()=> rej(tx.error || new Error('falha ao gravar a foto'));
+    tx.onabort    = ()=> rej(tx.error || new Error('gravação da foto abortada'));
+    try{
+      const sf = tx.objectStore('fotos');
+      const r = ficha.id ? sf.put(ficha) : sf.add(ficha);
+      r.onsuccess = ()=>{
+        const si = tx.objectStore('imagens');
+        const q = si.index('fotoUid').getAll(uidFinal);
+        q.onsuccess = ()=>{
+          const velha = (q.result||[])[0];
+          si.put(velha ? {...velha, ...imagem, fotoUid:uidFinal} : {...imagem, fotoUid:uidFinal});
+          if(mini){
+            const sm = tx.objectStore('minis');
+            const qm = sm.index('fotoUid').getAll(uidFinal);
+            qm.onsuccess = ()=>{
+              const vm = (qm.result||[])[0];
+              sm.put(vm ? {...vm, mini} : {fotoUid:uidFinal, mini});
+            };
+          }
+        };
+      };
+    }catch(e){ try{ tx.abort(); }catch(x){} rej(e); }
+  });
+}
+
+/* Uma foto que saiu em branco não é foto. Guardar a ficha dela cria o mesmo
+   fantasma de antes, só que com o fiscal achando que registrou. */
+function imagemVazia(tela){
+  try{
+    const ctx = tela.getContext('2d');
+    const L = Math.min(tela.width, 60), A = Math.min(tela.height, 60);
+    const d = ctx.getImageData(0, 0, L, A).data;
+    let min = 255, max = 0;
+    for(let i = 0; i < d.length; i += 4){
+      const v = (d[i] + d[i+1] + d[i+2]) / 3;
+      if(v < min) min = v;
+      if(v > max) max = v;
+    }
+    return (max - min) < 6;          /* tudo da mesma cor: branco ou preto */
+  }catch(e){ return false; }
+}
 async function dbPut(s,d){ const r={...d,_ts:Date.now(),_user:ID.nome||'campo'}; if(!r.uid) r.uid=novoUid();
   const id=await _rawPut(s,r); fila(s,r.uid,false); return id; }
 
@@ -984,9 +1041,12 @@ async function pintarFilaFotos(){
           Pode parar quando quiser — o que já subiu está salvo e o resto continua de onde parou.</p>`;
       return;
     }
-    /* cada visita à tela Enviar atualiza o inventário deste aparelho no
-       escritório — é de graça e evita ter que pedir foto de tela */
-    registrarDispositivo().catch(()=>{});
+    /* o escritório é avisado de tempos em tempos, não a cada pintura:
+       antes isso varria a lista inteira de fotos toda vez */
+    if(Date.now() - (window._ultRegDisp||0) > 300000){
+      window._ultRegDisp = Date.now();
+      registrarDispositivo().catch(()=>{});
+    }
     const n = await filaFotos();
     const esp = await espacoUsado();
     /* o nome deste aparelho em cima de tudo: com vários celulares em campo e
@@ -1454,30 +1514,48 @@ function mostrarLogin(){
 /* O que este aparelho tem guardado, em números. Vai junto com o registro do
    dispositivo e sobe como texto — assim o escritório enxerga a situação de
    cada celular sem precisar pedir foto de tela para o fiscal. */
-async function inventario(){
+/* O inventário lê a ficha de TODAS as fotos. Num aparelho com onze mil
+   fotos isso é caro, e eu o tinha pendurado na pintura da tela Enviar — que
+   roda a cada sincronização — chamando-o duas vezes, e cada uma lendo a lista
+   inteira duas vezes. Quatro varreduras de onze mil registros por pintura,
+   num celular de pouca memória: foi o que passou a fechar o aplicativo.
+   Agora é uma varredura só, e o resultado fica guardado por dois minutos. */
+let INV_CACHE = null, INV_QUANDO = 0;
+const INV_VALE = 120000;
+
+async function inventario(forcar){
+  if(!forcar && INV_CACHE && (Date.now() - INV_QUANDO) < INV_VALE) return INV_CACHE;
   const inv = {};
   try{ inv.fotosGuardadas = await dbContar('imagens'); }catch(e){}
   try{ inv.miniaturas     = await dbContar('minis');   }catch(e){}
-  try{ inv.semArquivoAqui = (await fotosSemArquivoAqui()).length; }catch(e){}
   try{
-    const fs = await dbGetAll('fotos');
-    inv.fichasDeFoto = fs.length;
-    inv.aindaNaNuvem = fs.filter(f=>f.enviada && f.url).length;
-    /* Dia a dia: quantas fotos de cada data ainda têm o arquivo AQUI e
-       quantas estão só como ficha. Sem isso só dava para saber o total do
-       aparelho, e a pergunta que importa é sempre "o dia tal dá para
-       recuperar?". */
-    const comBytes = await uidsComBytes();
-    const guard = {}, falta = {};
+    const comBytes = await uidsComBytes();          /* só as chaves, sem abrir imagem */
+    const fs = await dbGetAll('fotos');             /* UMA leitura, e só uma */
+    const guard = {}, falta = {}, fantasma = {};
+    let semArquivo = 0, naNuvem = 0;
     for(const f of fs){
+      if(f.deletado) continue;
+      if(f.enviada && f.url) naNuvem++;
       const dia = String(f.dataHora||'').slice(0,10);
-      if(!dia || f.deletado) continue;
-      if(comBytes.has(f.uid))                 guard[dia] = (guard[dia]||0)+1;
-      else if(!f.enviada && !(f.url||''))     falta[dia] = (falta[dia]||0)+1;
+      if(comBytes.has(f.uid)){ if(dia) guard[dia] = (guard[dia]||0)+1; continue; }
+      if(f.enviada || (f.url||'')) continue;
+      semArquivo++;
+      if(dia){
+        falta[dia] = (falta[dia]||0)+1;
+        /* Fantasma é só a foto que ESTE celular tirou e não tem mais.
+           As dos outros aparelhos estão lá, esperando subir. */
+        if(!f.dispositivo || f.dispositivo === ID.dispositivo)
+          fantasma[dia] = (fantasma[dia]||0)+1;
+      }
     }
+    inv.fichasDeFoto = fs.length;
+    inv.aindaNaNuvem = naNuvem;
+    inv.semArquivoAqui = semArquivo;
     inv.guardadasPorDia = guard;
     inv.semArquivoPorDia = falta;
-  }catch(e){}
+    inv.fantasmasDaquiPorDia = fantasma;
+    inv.fantasmasDaqui = Object.values(fantasma).reduce((a,b)=>a+b,0);
+  }catch(e){ inv.erroVarredura = String(e && e.message || e); }
   try{
     if(navigator.storage && navigator.storage.estimate){
       const e = await navigator.storage.estimate();
@@ -1493,6 +1571,7 @@ async function inventario(){
     inv.drenoErro = (DRENO && DRENO.erro) ? String(DRENO.erro).slice(0,120) : '';
   }catch(e){}
   inv.inventarioEm = new Date().toISOString();
+  INV_CACHE = inv; INV_QUANDO = Date.now();
   return inv;
 }
 
@@ -2339,6 +2418,16 @@ async function seqRecebeuFoto(input){
     const t1 = performance.now();
     const telaLimpa = telaDe(aberta, ID.qualidade||1000);
     if(aberta.close) try{ aberta.close(); }catch(e){}
+    /* saiu em branco: a câmera devolveu quadro vazio, o que acontece quando o
+       aparelho está sem memória. Melhor recusar e pedir de novo do que gravar
+       uma ficha sem foto — era isso que virava "foto que não existe". */
+    if(imagemVazia(telaLimpa)){
+      CAPTURANDO = false;
+      alerta('s-err','A foto saiu <b>em branco</b> — o celular não conseguiu capturar. '
+        + 'Feche e abra o aplicativo e tire essa foto de novo. <b>Nada foi gravado.</b>', 0);
+      await seqRender();
+      return;
+    }
     const original = telaLimpa.toDataURL('image/jpeg', 0.7);
     marco('reduzir', t1);
     seqMarcarOcupado(furoUid, tipo, 'Pegando a localização...');
@@ -2405,15 +2494,18 @@ async function seqRecebeuFoto(input){
       lancadoPor:ID.nome, dispositivo:ID.dispositivo
     };
     registro.arquivo = stCaminho(registro);
-    let fotoUid;
-    if(ja){ registro.uid = ja.uid; registro.id = ja.id; await dbPut('fotos', registro); fotoUid = ja.uid; }
-    else { await dbAdd('fotos', registro); fotoUid = (await seqFotosDe(furoUid)).find(x=>x.tipo===tipo).uid; }
+    if(ja){ registro.uid = ja.uid; registro.id = ja.id; }
+    else   { registro.uid = novoUid(); }
+    registro._ts = Date.now(); registro._user = ID.nome || 'campo';
+    const fotoUid = registro.uid;
 
-    const antiga = await dbUm('imagens','fotoUid',fotoUid);
-    const linha = {fotoUid, original, carimbada, completa:enderecoOk};
-    if(antiga) await _rawPut('imagens', {...antiga, ...linha});
-    else await _rawAdd('imagens', linha);
-    await miniGravar(fotoUid, carimbada);
+    /* a miniatura é feita ANTES de abrir a transação: encolher é demorado e
+       uma transação do IndexedDB fecha sozinha se ficar esperando */
+    let mini = '';
+    try{ mini = await encolher(carimbada, TELA_LARGURA, 0.6); }catch(e){ console.warn('sem miniatura', e); }
+
+    await gravarFotoCompleta(registro, {original, carimbada, completa:enderecoOk}, mini);
+    fila('fotos', fotoUid, false);     /* só entra na fila depois de gravado */
     MINI_SEM_FONTE.delete(fotoUid);
 
     await seqRender();
@@ -2605,9 +2697,10 @@ async function seqRender(){
     else{
       partes.push(`<b>${furos.length}</b> furos e <b>${nFotos}</b> fotos neste relatório.`);
       if(aEnviar) partes.push(`<b>${aEnviar}</b> foto(s) ainda não foram enviadas.`);
-      if(semArquivo) partes.push(`<span style="color:var(--red)"><b>${semArquivo}</b> foto(s) com o arquivo
-        fora deste aparelho — apertar enviar aqui não resolve. Fale com o gestor antes de desinstalar
-        ou limpar qualquer celular.</span>`);
+      if(semArquivo) partes.push(`<span style="color:var(--red)"><b>${semArquivo}</b> foto(s) sem o arquivo:
+        se foram tiradas neste celular, o app fechou antes de gravar e elas precisam ser
+        <b>refeitas</b>; se foram tiradas em outro aparelho, só de lá sobem. Abra a aba
+        <b>Enviar</b> para ver qual é o caso.</span>`);
       if(semEnd) partes.push(`<b>${semEnd}</b> sem endereço no carimbo — o app completa quando houver internet.`);
       if(semGps) partes.push(`<span style="color:var(--red)"><b>${semGps}</b> sem GPS.</span>`);
     }
@@ -2731,12 +2824,23 @@ async function seqEnviarFotos(silencioso){
      Agora elas são separadas antes de começar, e ditas pelo nome. */
   const comBytes = await uidsComBytes();
   const pend = todasPend.filter(f=>comBytes.has(f.uid));
-  const foraDaqui = todasPend.length - pend.length;
+  const semArq = todasPend.filter(f=>!comBytes.has(f.uid));
+  const foraDaqui = semArq.length;
+  /* Foto sem arquivo tem DUAS causas muito diferentes, e tratá-las igual me
+     fez acusar o celular errado por semanas: ou ela foi tirada em outro
+     aparelho, ou o arquivo se perdeu aqui mesmo — e aí é refazer a foto. */
+  const daqui  = semArq.filter(f=>!f.dispositivo || f.dispositivo === ID.dispositivo);
+  const deOutro= semArq.filter(f=> f.dispositivo && f.dispositivo !== ID.dispositivo);
+  const nomes  = [...new Set(deOutro.map(f=>f.dispositivo))];
   if(!pend.length){
     limpa('s-prog');
-    alerta('s-aviso', `Não há nada para enviar deste aparelho. As <b>${foraDaqui}</b> foto(s)
-      que faltam foram registradas em outro celular — o arquivo delas está lá, não aqui.
-      Procure o gestor: apertar enviar nesta tela não muda nada.`, 0);
+    const partes = [];
+    if(daqui.length) partes.push(`<b>${daqui.length}</b> foto(s) foram registradas
+      <b>neste aparelho</b> mas o arquivo se perdeu — provavelmente o app fechou na
+      hora de gravar. Essas precisam ser <b>tiradas de novo</b>.`);
+    if(deOutro.length) partes.push(`<b>${deOutro.length}</b> foto(s) foram tiradas em
+      <b>${esc(nomes.join(', '))}</b> — o arquivo delas está lá, e só de lá podem subir.`);
+    alerta('s-aviso', 'Não há nada para enviar deste aparelho.<br>' + partes.join('<br>'), 0);
     return false;
   }
   let ok = 0, falhas = 0;
@@ -2789,7 +2893,9 @@ async function seqEnviarFotos(silencioso){
   limpa('s-prog');
   await seqRender();
   const nota = foraDaqui
-    ? ` Outras <b>${foraDaqui}</b> foto(s) deste relatório foram registradas em outro celular e só podem ser enviadas de lá.`
+    ? ` Outras <b>${foraDaqui}</b> foto(s) deste relatório estão sem arquivo`
+      + (daqui.length ? ` — <b>${daqui.length}</b> se perderam aqui e precisam ser tiradas de novo` : '')
+      + (deOutro.length ? ` — <b>${deOutro.length}</b> foram tiradas em ${esc(nomes.join(', '))}` : '') + '.'
     : '';
   if(falhas) alerta('s-aviso', `<b>${ok}</b> foto(s) enviadas, <b>${falhas}</b> falharam.
     Toque em enviar de novo para tentar as que faltam.${nota}`, 0);
