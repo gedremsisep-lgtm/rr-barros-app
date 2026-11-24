@@ -450,7 +450,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261119-043';
+const APP_VERSION = '20261124-044';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -939,16 +939,84 @@ async function puxarUsuarios(){
   }
   return n;
 }
+
+/* A sincronização pedia "o que mudou depois de tal instante" e seguia pelo
+   instante do último registro da página. Quando mais registros do que cabem
+   numa página compartilham o MESMO instante — e aqui há blocos de até 491 no
+   mesmo milissegundo, porque sobem em lote — o resto daquele instante nunca
+   mais era pedido: ficava para trás em silêncio, para sempre.
+   Era assim que foto existente na nuvem nunca chegava no escritório.
+   Agora a marca é o par (instante, uid), que é único, e nada escapa. */
+function _cursorLer(bruto){
+  const v = String(bruto || '');
+  const i = v.indexOf('|');
+  return i < 0 ? {ts: v || '1970-01-01T00:00:00.000Z', uid: ''}
+               : {ts: v.slice(0, i), uid: v.slice(i+1)};
+}
+function _cursorGravar(ts, uid){ return String(ts) + '|' + String(uid || ''); }
+/* Se o servidor recusar o filtro composto, o aparelho não pode ficar sem
+   sincronizar: cai sozinho num modo simples que também não perde registro —
+   pede a partir do instante (inclusive), ignora o que já aplicou e, quando um
+   instante tem mais registros do que cabe na página, esvazia aquele instante
+   de uma vez antes de seguir. */
+let _cursorModo = 'par';
+const _jaAplicado = new Set();
+async function _paginaSync(ts, uid, limite){
+  const base = `${SYNC.tabela}?select=*&org=eq.${encodeURIComponent(SYNC.org)}`;
+  if(_cursorModo === 'par'){
+    try{
+      return await (await syncFetch(base + `&${_cursorFiltro(ts, uid)}`
+        + `&order=atualizado_em.asc,uid.asc&limit=${limite}`, {method:'GET'})).json();
+    }catch(e){
+      console.warn('filtro composto recusado; modo simples', e);
+      _cursorModo = 'simples';
+    }
+  }
+  return await (await syncFetch(base + `&atualizado_em=gte.${encodeURIComponent(ts)}`
+    + `&order=atualizado_em.asc&limit=${limite}`, {method:'GET'})).json();
+}
+async function _instanteInteiro(ts){
+  const base = `${SYNC.tabela}?select=*&org=eq.${encodeURIComponent(SYNC.org)}`;
+  return await (await syncFetch(base + `&atualizado_em=eq.${encodeURIComponent(ts)}`
+    + `&order=uid.asc&limit=1000`, {method:'GET'})).json();
+}
+function _cursorFiltro(ts, uid){
+  const t = String(ts).replace(/\+/g, '%2B');
+  const u = String(uid || '').replace(/"/g, '');
+  return `or=(atualizado_em.gt."${t}",and(atualizado_em.eq."${t}",uid.gt."${u}"))`;
+}
+/* Os aparelhos que já rodaram com a marca velha estão com o relógio adiantado:
+   o que ficou para trás nunca mais seria pedido. Uma vez só, e apenas uma, a
+   marca volta ao começo para rebaixar tudo. Reaplicar registro é inofensivo —
+   cada um entra pelo seu uid, substituindo o que já existe. */
+const REPARO_KEY = 'rrb_reparo_sync_v1';
+function repararMarcaUmaVez(){
+  try{
+    if(localStorage.getItem(REPARO_KEY)) return false;
+    localStorage.setItem(REPARO_KEY, new Date().toISOString());
+    localStorage.setItem(PULL_KEY, _cursorGravar('1970-01-01T00:00:00.000Z',''));
+    console.log('marca de sincronização reiniciada para rebaixar o que ficou para trás');
+    return true;
+  }catch(e){ return false; }
+}
 async function baixar(){
-  let desde=localStorage.getItem(PULL_KEY)||'1970-01-01T00:00:00.000Z';
+  repararMarcaUmaVez();
+  let {ts, uid} = _cursorLer(localStorage.getItem(PULL_KEY));
   let total=0,rodadas=0;
   while(rodadas++<25){
-    const q=`${SYNC.tabela}?select=*&org=eq.${encodeURIComponent(SYNC.org)}`
-          + `&atualizado_em=gt.${encodeURIComponent(desde)}&order=atualizado_em.asc&limit=30`;
-    const linhas=await (await syncFetch(q,{method:'GET'})).json();
+    let linhas = await _paginaSync(ts, uid, 200);
     if(!linhas.length) break;
+    if(_cursorModo === 'simples'){
+      const novas = linhas.filter(l=>!_jaAplicado.has(l.uid));
+      if(!novas.length){            /* instante maior que a pagina: esvazia ele */
+        for(const l of await _instanteInteiro(ts)) if(!_jaAplicado.has(l.uid)) novas.push(l);
+        if(!novas.length){ ts = new Date(new Date(ts).getTime()+1).toISOString(); continue; }
+      }
+      linhas = novas;
+    }
     for(const ln of linhas){
-      if(ln.atualizado_em>desde) desde=ln.atualizado_em;
+      ts = ln.atualizado_em; uid = ln.uid;
+      if(_cursorModo === 'simples') _jaAplicado.add(ln.uid);
       if(!SYNC_STORES.includes(ln.store)) continue;
       const all=await dbGetAll(ln.store);
       const local=all.find(x=>x.uid===ln.uid);
@@ -960,8 +1028,8 @@ async function baixar(){
       else { delete rec.id; await _rawAdd(ln.store,rec); }
       total++;
     }
-    localStorage.setItem(PULL_KEY,desde);
-    if(linhas.length<30) break;
+    localStorage.setItem(PULL_KEY, _cursorGravar(ts, uid));
+    if(linhas.length < 200 && _cursorModo === 'par') break;
   }
   return total;
 }
