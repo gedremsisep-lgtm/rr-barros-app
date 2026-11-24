@@ -1,6 +1,6 @@
 {
-  "systemVersion": "20261111-042",
+  "systemVersion": "20261124-043",
   "exeVersion": "1.1.0",
-  "publicadoEm": "2026-11-19T12:34:53Z",
-  "notas": "Conserta a foto fantasma: ficha e imagem gravam juntas, foto em branco e recusada e a tela Enviar deixa de varrer tudo"
+  "publicadoEm": "2026-11-24T12:24:54Z",
+  "notas": "Conserta perda na sincronizacao: registros do mesmo instante que nao cabiam na pagina nunca mais eram pedidos"
 }
