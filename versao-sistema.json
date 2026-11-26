@@ -1,6 +1,6 @@
 {
-  "systemVersion": "20261124-043",
+  "systemVersion": "20261126-044",
   "exeVersion": "1.1.0",
-  "publicadoEm": "2026-11-24T12:24:54Z",
-  "notas": "Conserta perda na sincronizacao: registros do mesmo instante que nao cabiam na pagina nunca mais eram pedidos"
+  "publicadoEm": "2026-11-26T13:48:13Z",
+  "notas": "Registro de acoes no sistema: quem fez cada coisa, visivel apenas para o gestor"
 }
