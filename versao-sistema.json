@@ -1,6 +1,6 @@
 {
-  "systemVersion": "20261126-044",
+  "systemVersion": "20261126-045",
   "exeVersion": "1.1.0",
-  "publicadoEm": "2026-11-26T13:48:13Z",
-  "notas": "Registro de acoes no sistema: quem fez cada coisa, visivel apenas para o gestor"
+  "publicadoEm": "2026-11-26T17:21:17Z",
+  "notas": "Sistema 045: senha de fabrica removida, perfil Administrador sem configuracoes e registro passa a dizer de qual computador partiu cada acao"
 }
