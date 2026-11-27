@@ -138,6 +138,8 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
 .fcard-furo .fb{padding:11px 12px}
 .slotp{position:relative;aspect-ratio:4/3;max-height:230px;border:2px dashed var(--border2);border-radius:var(--r2);background:var(--bg3);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
 .slotp.cheio{border-style:solid;border-color:var(--green)}
+.slotp.cheio.fora{border-color:var(--red);border-width:3px}
+.fora-sel{position:absolute;top:0;left:0;right:0;background:var(--red);color:#fff;font-size:9.5px;font-weight:800;text-align:center;padding:3px 2px;letter-spacing:.3px;z-index:2}
 .slotp i{font-size:26px;color:var(--text3)}
 .slotp .rot{font-size:11px;font-weight:800;color:var(--text3);margin-top:4px;text-align:center;line-height:1.2;padding:0 4px}
 .slotp img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -275,6 +277,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
     <button class="btn g" id="s-concluir" onclick="seqConcluir()"><i class="ti ti-checkbox"></i>Concluir · enviar e gerar relatório</button>
     <div id="s-pos"></div>
     <div class="brow" style="margin-top:9px">
+      <button class="btn sm" style="flex:1" onclick="conferirAgora()"><i class="ti ti-checkup-list"></i>Conferir com o sistema</button>
       <button class="btn sm" style="flex:1" onclick="seqEnviarFotos(false)"><i class="ti ti-cloud-up"></i>Só enviar</button>
       <button class="btn sm" style="flex:1" onclick="seqGerarPDF(true)"><i class="ti ti-file-type-pdf"></i>Só o PDF</button>
       <button class="btn sm" style="flex:1" onclick="seqPlanilha()"><i class="ti ti-table-export"></i>Planilha</button>
@@ -457,7 +460,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261127-046';
+const APP_VERSION = '20261127-047';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -558,6 +561,79 @@ function fotosDosFuros(uids){  return new Promise((res,rej)=>{
     }catch(e){ rej(e); }
   });
 }
+/* Este registro nasceu neste celular? Os antigos não gravavam o aparelho —
+   nesses, o nome de quem lançou serve de assinatura. */
+function ehDesteAparelho(r){
+  if(!r) return false;
+  if(r.dispositivo) return r.dispositivo === ID.dispositivo;
+  return !!(ID.nome && (r._user === ID.nome || r.lancadoPor === ID.nome));
+}
+
+/* ------------------- CONFERÊNCIA COM O SISTEMA -------------------------
+   A regra da casa: o que aparece aqui tem de aparecer no computador. Esta
+   rotina pergunta ao sistema quais fichas de foto ele tem para um dia, põe
+   lado a lado com as daqui e devolve a diferença. O que falta lá e nunca foi
+   excluído volta para a fila de envio sozinho. O que lá está marcado como
+   excluído não é reposto escondido: aparece para o gestor decidir. */
+async function conferirRelatorio(relatorioUid){
+  if(!conectado() || !navigator.onLine) return {erro:'sem conexão'};
+  const alvo = relatorioUid || (REL_ATUAL && REL_ATUAL.uid) || '';
+  if(!alvo) return {erro:'nenhum relatório aberto'};
+  const daqui = (await dbGetAll('fotos')).filter(f=>f.relatorioUid === alvo && !f.deletado);
+  const q = `${SYNC.tabela}?select=uid,deletado&org=eq.${encodeURIComponent(SYNC.org)}`
+          + `&store=eq.fotos&dados->>relatorioUid=eq.${encodeURIComponent(alvo)}&limit=5000`;
+  let la;
+  try{ la = await (await syncFetch(q, {method:'GET'})).json(); }
+  catch(e){ return {erro:'não deu para perguntar ao sistema: ' + (e.message||e)}; }
+  const vivasLa = new Set(la.filter(l=>!l.deletado).map(l=>l.uid));
+  const mortasLa = new Set(la.filter(l=>l.deletado).map(l=>l.uid));
+  const faltam = [], excluidas = [];
+  for(const f of daqui){
+    if(vivasLa.has(f.uid)) continue;
+    (mortasLa.has(f.uid) ? excluidas : faltam).push(f);
+  }
+  /* o que simplesmente não chegou volta para a fila — isso é reposição, não
+     ressurreição: ninguém mandou excluir */
+  faltam.forEach(f=>fila('fotos', f.uid, false));
+  if(faltam.length) await sincronizar(true);
+  const r = { relatorioUid:alvo, aqui:daqui.length, noSistema:vivasLa.size,
+              repostas:faltam.length, excluidasNoSistema:excluidas.length,
+              furosExcluidos:[...new Set(excluidas.map(f=>f.furoNum))].sort((a,b)=>a-b),
+              quando:new Date().toISOString() };
+  try{ localStorage.setItem('rrb_conferencia_' + alvo, JSON.stringify(r)); }catch(e){}
+  return r;
+}
+/* o botão: confere na hora e diz o resultado em uma frase */
+async function conferirAgora(){
+  limpa('s-err','s-ok','s-aviso');
+  if(!REL_ATUAL){ alerta('s-err','Nenhum relatório aberto neste dia.'); return; }
+  alerta('s-aviso','Conferindo com o computador...', 0);
+  CONF_ULTIMA = Date.now();
+  const r = await conferirRelatorio(REL_ATUAL.uid);
+  limpa('s-aviso');
+  if(r.erro){ alerta('s-err','Não deu para conferir agora: ' + esc(r.erro)); return; }
+  await seqRender();
+  const partes = [];
+  if(r.repostas) partes.push(`<b>${r.repostas}</b> foto(s) estavam só aqui e foram reenviadas`);
+  if(r.excluidasNoSistema) partes.push(`<b>${r.excluidasNoSistema}</b> foto(s) foram excluídas no escritório`
+    + (r.furosExcluidos.length ? ` (furos ${r.furosExcluidos.slice(0,12).join(', ')}${r.furosExcluidos.length>12?'...':''})` : ''));
+  if(!partes.length)
+    alerta('s-ok',`Conferido: as <b>${r.aqui}</b> fotos deste dia estão aqui e no computador.`, 0);
+  else
+    alerta('s-aviso','Conferido. ' + partes.join('. ') + '.', 0);
+}
+/* roda sozinha, sem incomodar, quando o dia está aberto na tela */
+let CONF_ULTIMA = 0;
+async function conferirDeFundo(){
+  if(Date.now() - CONF_ULTIMA < 600000) return;      /* no máximo de 10 em 10 min */
+  if(!REL_ATUAL || !conectado() || !navigator.onLine || DRENO.rodando || CAPTURANDO) return;
+  CONF_ULTIMA = Date.now();
+  try{
+    const r = await conferirRelatorio(REL_ATUAL.uid);
+    if(r && (r.repostas || r.excluidasNoSistema) && TELA === 'seq') await seqRender();
+  }catch(e){ console.warn('conferência adiada', e); }
+}
+
 async function fotosDe(furos){
   const uids = furos.map(f=>f.uid);
   try{ return await fotosDosFuros(uids); }  catch(e){ console.warn('sem atalho em fotos', e);
@@ -1027,7 +1103,24 @@ async function baixar(){
       if(!SYNC_STORES.includes(ln.store)) continue;
       const all=await dbGetAll(ln.store);
       const local=all.find(x=>x.uid===ln.uid);
-      if(ln.deletado){ if(local) await _rawDel(ln.store,local.id); total++; continue; }
+      if(ln.deletado){
+        /* Foto tirada neste aparelho é prova, e prova não se apaga por ordem
+           vinda de fora. Até 23/11/2026 uma exclusão feita no computador
+           chegava aqui e removia o registro do celular — era a última cópia
+           indo embora. Agora o registro fica, marcado, visível na tela, e o
+           gestor decide se repõe no sistema. O resto (outro aparelho, dados
+           de cadastro) continua obedecendo. */
+        if(local){
+          if((ln.store==='fotos' || ln.store==='furos') && ehDesteAparelho(local)){
+            await _rawPut(ln.store, {...local,
+              excluidoNoEscritorio:true,
+              excluidoNoEscritorioEm: ln.atualizado_em});
+          } else {
+            await _rawDel(ln.store, local.id);
+          }
+        }
+        total++; continue;
+      }
       if(local && (local._ts||0) > new Date(ln.atualizado_em).getTime()+1500) continue;
       const rec={...(ln.dados||{}),uid:ln.uid};
       /* Cada aparelho tem seus próprios ids locais — o vínculo real é o uid da medição. */
@@ -2865,7 +2958,7 @@ async function seqRender(){
        vezes achando que ia resolver, sem nada para enviar. */
     const comBytes = await uidsComBytes();
     let nFotos = 0, semEnd = 0, aEnviar = 0, semGps = 0, semArquivo = 0;
-    let faltaAntes = 0, faltaDepois = 0;
+    let faltaAntes = 0, faltaDepois = 0, excluidasFora = 0;
     const cartoes = furos.map(f=>{
       const marcas = [];
       const cels = ['antes','depois'].map(tipo=>{
@@ -2884,9 +2977,12 @@ async function seqRender(){
         const gpsCls = fo.lat!=null ? '' : ' no';
         const gpsTxt = fo.lat!=null ? (fo.enderecoOk?'GPS+END':'GPS') : 'SEM GPS';
         marcas.push(`${tipo}:${fo.uid}:${fo._ts||0}:${mini?'m':'r'}`);
-        return `<div class="slotp cheio" data-slot="${f.uid}|${tipo}" onclick="seqTirar('${f.uid}','${tipo}')">
+        const fora = !!fo.excluidoNoEscritorio;
+        if(fora) excluidasFora++;
+        return `<div class="slotp cheio${fora?' fora':''}" data-slot="${f.uid}|${tipo}" onclick="seqTirar('${f.uid}','${tipo}')">
             ${src?`<img src="${src}" alt="" decoding="async" loading="lazy">`:''}
             <div class="gps${gpsCls}">${gpsTxt}</div>
+            ${fora?'<div class="fora-sel">EXCLUÍDA NO ESCRITÓRIO</div>':''}
             <div class="tag">${esc(fo.rotulo)}${fo.enviada?' ✓':''}</div></div>`;
       }).join('');
       const completo = mapaF.has(f.uid+'|antes') && mapaF.has(f.uid+'|depois');
@@ -2942,6 +3038,18 @@ async function seqRender(){
         <b>Enviar</b> para ver qual é o caso.</span>`);
       if(semEnd) partes.push(`<b>${semEnd}</b> sem endereço no carimbo — o app completa quando houver internet.`);
       if(semGps) partes.push(`<span style="color:var(--red)"><b>${semGps}</b> sem GPS.</span>`);
+      if(excluidasFora) partes.push(`<span style="color:var(--red)"><b>${excluidasFora}</b> foto(s) deste dia
+        foram <b>excluídas no escritório</b> e continuam aqui, marcadas em vermelho. Elas não
+        aparecem no computador até alguém repor.</span>`);
+      let conf = null;
+      try{ conf = JSON.parse(localStorage.getItem('rrb_conferencia_' + (REL_ATUAL?REL_ATUAL.uid:'')) || 'null'); }catch(e){}
+      if(conf && !conf.erro){
+        const h = String(conf.quando||'').slice(11,16);
+        if(conf.repostas) partes.push(`<span style="color:var(--amber)">Na conferência das ${h} o sistema estava
+          sem <b>${conf.repostas}</b> foto(s) daqui — foram reenviadas.</span>`);
+        else if(!conf.excluidasNoSistema) partes.push(`<span style="color:var(--green)">Conferido às ${h}:
+          as <b>${conf.aqui}</b> fotos deste dia estão também no computador.</span>`);
+      }
       const rec = recusasDoDia();
       if(rec && (rec.branco || rec.antiga)){
         const q = [];
@@ -2953,6 +3061,7 @@ async function seqRender(){
       }
     }
     $('s-status').innerHTML = partes.join('<br>');
+    setTimeout(conferirDeFundo, 2500);   /* ela mesma se segura por 10 minutos */
   }catch(err){ console.error(err); erroSeq(err); }
 }
 function pintarRelBar(){
@@ -3576,6 +3685,11 @@ async function seqConcluir(){
       });
     }
     await sincronizar(true);
+    /* antes de dar o dia por fechado, conferir foto a foto com o computador:
+       o que estiver só aqui volta para a fila na hora */
+    CONF_ULTIMA = 0;
+    try{ const cf = await conferirRelatorio(REL_ATUAL && REL_ATUAL.uid);
+      if(cf && cf.repostas) await sincronizar(true); }catch(e){ console.warn('conferência', e); }
     await seqGerarPDF(true);   /* um único PDF, com todas as fotos do relatório */
     await seqRender();
     alerta('s-ok','Relatório <b>'+(REL_ATUAL?esc(relCod(REL_ATUAL)):'')+'</b> concluído — um documento só, com as '
