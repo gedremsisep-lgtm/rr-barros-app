@@ -1,8 +1,8 @@
 {
-  "appVersion": "20261127-046",
+  "appVersion": "20261127-047",
   "apkVersionCode": 6,
   "apkVersionName": "1.5",
   "apkUrl": "https://gedremsisep-lgtm.github.io/rr-barros-app/RR-Barros.apk",
-  "publicadoEm": "2026-11-27T13:57:46Z",
-  "notas": "App 046: suporte pode pedir ao celular que reenvie um relatorio inteiro, para repor no sistema o que foi excluido no computador"
+  "publicadoEm": "2026-11-27T17:47:48Z",
+  "notas": "App 047 e sistema 046: foto tirada no celular nunca mais e apagada por ordem do computador, conferencia automatica entre app e sistema, e lixeira no escritorio "
 }

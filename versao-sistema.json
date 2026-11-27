@@ -1,6 +1,6 @@
 {
-  "systemVersion": "20261126-045",
+  "systemVersion": "20261127-046",
   "exeVersion": "1.1.0",
-  "publicadoEm": "2026-11-27T13:57:46Z",
-  "notas": "App 046: suporte pode pedir ao celular que reenvie um relatorio inteiro, para repor no sistema o que foi excluido no computador"
+  "publicadoEm": "2026-11-27T17:47:48Z",
+  "notas": "App 047 e sistema 046: foto tirada no celular nunca mais e apagada por ordem do computador, conferencia automatica entre app e sistema, e lixeira no escritorio "
 }
