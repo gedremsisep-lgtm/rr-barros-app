@@ -457,7 +457,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261127-045';
+const APP_VERSION = '20261127-046';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -1227,7 +1227,8 @@ const SUP_HORAS = 24;
    que venha escrito no comando: o canal é público e um aparelho não pode
    virar porta de entrada para qualquer coisa. */
 const SUP_ACOES = ['inventario','reenviar','refazerMinis','sincronizar',
-                   'detalharRelatorio','enviarAmostra','limparOrfaos'];
+                   'detalharRelatorio','enviarAmostra','limparOrfaos',
+                   'reenviarRelatorio'];
 
 function supEstado(){
   try{ return JSON.parse(localStorage.getItem(SUP_KEY) || '{}'); }catch(e){ return {}; }
@@ -1505,6 +1506,25 @@ async function supExecutar(acao, args){
         uid:f.uid, tipo:f.tipo, furo:f.furoNum, dia:String(f.dataHora||'').slice(0,10),
         arquivoAqui:comBytes.has(f.uid), miniAqui:minis.has(f.uid),
         enviada:!!f.enviada, url:(f.url||'').slice(0,80), dispositivo:f.dispositivo||'' })) };
+  }
+  /* Reenvia um relatório inteiro deste celular: o dia, os furos e as fichas
+     de foto. Serve para quando o escritório perdeu os registros e o aparelho
+     ainda os tem — como em 23/11/2026, quando 42 furos foram excluídos no
+     computador e só a cópia do celular sobrou. Não mexe em foto nenhuma:
+     apenas põe o que já existe aqui de volta na fila de subida. */
+  if(acao === 'reenviarRelatorio'){
+    const alvo = args.relatorioUid || '';
+    if(!alvo) return {erro:'faltou dizer qual relatório'};
+    const rel   = (await dbGetAll('relatorios')).find(r=>r.uid === alvo && !r.deletado);
+    const furos = (await dbGetAll('furos')).filter(f=>f.relatorioUid === alvo && !f.deletado);
+    const fotos = (await dbGetAll('fotos')).filter(f=>f.relatorioUid === alvo && !f.deletado);
+    if(!rel && !furos.length && !fotos.length) return {relatorioUid:alvo, erro:'este aparelho não tem esse relatório'};
+    if(rel) fila('relatorios', rel.uid, false);
+    furos.forEach(f=>fila('furos', f.uid, false));
+    fotos.forEach(f=>fila('fotos', f.uid, false));
+    await sincronizar(true);
+    return { relatorioUid:alvo, relatorio:!!rel, furos:furos.length, fotos:fotos.length,
+             aindaNaFila:lerFila().length };
   }
   if(acao === 'enviarAmostra'){
     /* sobe uma foto específica para o suporte conseguir olhar o arquivo */
