@@ -1,8 +1,8 @@
 {
-  "appVersion": "20261124-044",
+  "appVersion": "20261127-045",
   "apkVersionCode": 6,
   "apkVersionName": "1.5",
   "apkUrl": "https://gedremsisep-lgtm.github.io/rr-barros-app/RR-Barros.apk",
-  "publicadoEm": "2026-11-26T17:21:17Z",
-  "notas": "Sistema 045: senha de fabrica removida, perfil Administrador sem configuracoes e registro passa a dizer de qual computador partiu cada acao"
+  "publicadoEm": "2026-11-27T13:38:26Z",
+  "notas": "App 045: rodada guiada do ANTES e do DEPOIS, um furo por vez, e contagem de fotos recusadas por dia"
 }
