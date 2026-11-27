@@ -151,6 +151,11 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
 .relbar i{font-size:18px}
 .relbar .st{margin-left:4px}
 .gpsbar{display:flex;align-items:flex-start;gap:9px;padding:11px 13px;border-radius:var(--r);margin-bottom:12px;font-size:13px;line-height:1.4;border:1.5px solid}
+.rodbar{background:var(--blue-bg);border:2px solid var(--blue);border-radius:var(--r);padding:12px 13px;margin-bottom:12px}
+.rodtop{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.rodtop span{font-weight:700;color:var(--blue)}
+.rodfuro{font-size:21px;font-weight:800;margin-bottom:10px;line-height:1.2}
+.rodfuro small{display:block;font-size:12.5px;font-weight:500;color:var(--text2);margin-top:2px}
 .gpsbar i{font-size:19px;flex-shrink:0;margin-top:1px}
 .gpsbar b{display:block}
 .gpsbar.ok{background:var(--green-bg);border-color:#9ecf9b;color:var(--green)}
@@ -254,6 +259,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
   </div>
 
   <div id="s-gps" class="gpsbar" onclick="ativarGPS(true)"></div>
+  <div id="s-rodada"></div>
   <div class="kg" id="s-kpis"></div>
   <div id="s-lista"></div>
 
@@ -264,6 +270,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
 
   <div class="card">
     <div class="sh"><i class="ti ti-send"></i>Fechar o dia</div>
+    <div id="s-rodadas"></div>
     <div id="s-status" style="font-size:13.5px;color:var(--text2);margin-bottom:11px"></div>
     <button class="btn g" id="s-concluir" onclick="seqConcluir()"><i class="ti ti-checkbox"></i>Concluir · enviar e gerar relatório</button>
     <div id="s-pos"></div>
@@ -450,7 +457,7 @@ button,input,select,textarea{font-family:inherit;font-size:16px;color:var(--text
    Companheiro do sistema de Relatório Fotográfico. Funciona offline e
    sincroniza pela mesma tabela na nuvem usada pelo computador.
    ====================================================================== */
-const APP_VERSION = '20261124-044';
+const APP_VERSION = '20261127-045';
 
 /* ======================================================================
    CONFIGURAÇÃO DA NUVEM — preencha UMA VEZ, antes de publicar o app.
@@ -1238,6 +1245,7 @@ async function montarDiagnostico(){
               aparelho:ID.dispositivo||'', conta:ID.login||'', nome:ID.nome||'',
               equipe:ID.equipe||'', chave:supChave() };
   try{ d.inventario = await inventario(); }catch(e){ d.erroInventario = String(e); }
+  try{ d.recusasPorDia = recusasLer(); }catch(e){ d.recusasPorDia = {}; }
   try{
     d.contagem = {};
     for(const st of STORES){ try{ d.contagem[st] = await dbContar(st); }catch(e){ d.contagem[st] = -1; } }
@@ -2439,6 +2447,132 @@ function excluirRelatorio(uid){
 /* Enquanto a câmera está aberta ou a foto está sendo gravada, nada pode
    recarregar a tela por baixo — perderia a foto. */
 let CAPTURANDO = false;
+/* ---------------------- FOTOS RECUSADAS ------------------------------
+   O app recusa foto em branco e foto velha, e fazia isso calado: aparecia
+   o aviso na tela e pronto. Quem olhava o relatório três dias depois via
+   só o buraco e achava que o envio tinha falhado. Agora cada recusa é
+   contada por dia e viaja junto no registro do aparelho. */
+const RECUSA_KEY = 'rrb_recusas_v1';
+function recusasLer(){
+  try{ return JSON.parse(localStorage.getItem(RECUSA_KEY) || '{}'); }catch(e){ return {}; }
+}
+function contarRecusa(motivo, furoNum){
+  try{
+    const t = recusasLer();
+    const dia = ($('s-data') && $('s-data').value) || new Date().toISOString().slice(0,10);
+    const d = t[dia] || {branco:0, antiga:0, furos:[]};
+    d[motivo] = (d[motivo] || 0) + 1;
+    if(furoNum != null && !d.furos.includes(furoNum)) d.furos.push(furoNum);
+    t[dia] = d;
+    /* guarda os últimos 60 dias, nada mais */
+    const dias = Object.keys(t).sort().slice(-60);
+    const limpo = {}; dias.forEach(k=>limpo[k] = t[k]);
+    localStorage.setItem(RECUSA_KEY, JSON.stringify(limpo));
+  }catch(e){}
+}
+function recusasDoDia(){
+  const dia = ($('s-data') && $('s-data').value) || new Date().toISOString().slice(0,10);
+  return recusasLer()[dia] || null;
+}
+
+/* ------------------------- RODADA GUIADA ------------------------------
+   A equipe fotografa o ANTES de manhã e passa de novo no fim do dia para o
+   DEPOIS. Até aqui, achar na lista qual furo ainda faltava era olho e
+   rolagem — e foi assim que o dia 24 fechou com 57 fotos faltando sem
+   ninguém perceber. A rodada faz essa conta pelo fiscal: mostra um furo
+   por vez, só os que faltam, abre a câmera e anda sozinha. No fim ela diz
+   o que ficou para trás, ainda na rua, enquanto dá para voltar. */
+let RODADA = {tipo:null, fila:[], pos:0, feitas:0, puladas:[]};
+
+function rodadaLimpa(){ RODADA = {tipo:null, fila:[], pos:0, feitas:0, puladas:[]}; }
+function rodadaAtual(){ return RODADA.tipo ? RODADA.fila[RODADA.pos] : null; }
+
+async function rodadaFaltando(tipo){
+  const furos = await seqFuros();
+  if(!furos.length) return [];
+  const fotos = await fotosDe(furos);
+  const tem = new Set(fotos.map(f=>f.furoUid + '|' + f.tipo));
+  return furos.filter(f=>!tem.has(f.uid + '|' + tipo));
+}
+async function rodadaIniciar(tipo){
+  if(!pode('lancar')){ alerta('s-err', esc(avisoLimite('lancar'))); return; }
+  if(congelado($('s-data') && $('s-data').value)){
+    alerta('s-err','Este dia já foi fechado pelo escritório e não aceita mais alteração.'); return; }
+  limpa('s-err','s-ok','s-aviso');
+  const fila = await rodadaFaltando(tipo);
+  const nome = tipo === 'antes' ? 'ANTES' : 'DEPOIS';
+  if(!fila.length){
+    alerta('s-ok','Nenhum furo está sem a foto do <b>' + nome + '</b>. Nada a fazer.');
+    return;
+  }
+  rodadaLimpa();
+  RODADA = {tipo, fila, pos:0, feitas:0, puladas:[]};
+  pintarRodada();
+  rodadaTirar();
+}
+function rodadaTirar(){
+  const f = rodadaAtual();
+  if(!f){ rodadaFim(); return; }
+  seqTirar(f.uid, RODADA.tipo);
+}
+function rodadaPular(){
+  const f = rodadaAtual();
+  if(f) RODADA.puladas.push(f.num);
+  RODADA.pos++;
+  if(RODADA.pos >= RODADA.fila.length){ rodadaFim(); return; }
+  pintarRodada();
+  rodadaTirar();
+}
+function rodadaParar(){
+  const t = RODADA.tipo;
+  if(t && RODADA.pos < RODADA.fila.length){
+    const faltam = RODADA.fila.length - RODADA.pos;
+    rodadaLimpa(); pintarRodada();
+    alerta('s-aviso','Rodada interrompida. Ainda faltam <b>' + faltam + '</b> furo(s) sem a foto do <b>'
+      + (t==='antes'?'ANTES':'DEPOIS') + '</b>.', 0);
+    return;
+  }
+  rodadaLimpa(); pintarRodada();
+}
+/* chamada depois que a foto foi realmente gravada */
+async function rodadaAvancar(){
+  if(!RODADA.tipo) return;
+  RODADA.feitas++;
+  RODADA.pos++;
+  if(RODADA.pos >= RODADA.fila.length){ await rodadaFim(); return; }
+  pintarRodada();
+  setTimeout(()=>{ if(RODADA.tipo && !CAPTURANDO) rodadaTirar(); }, 400);
+}
+async function rodadaFim(){
+  const nome = RODADA.tipo === 'antes' ? 'ANTES' : 'DEPOIS';
+  const feitas = RODADA.feitas, puladas = RODADA.puladas.slice();
+  rodadaLimpa();
+  pintarRodada();
+  await seqRender();
+  if(puladas.length)
+    alerta('s-aviso','Rodada do <b>' + nome + '</b>: <b>' + feitas + '</b> foto(s) tiradas. '
+      + 'Ficaram <b>sem foto</b> os furos <b>' + puladas.join(', ') + '</b>. '
+      + 'Dá para refazer a rodada agora, antes de sair da rua.', 0);
+  else
+    alerta('s-ok','Rodada do <b>' + nome + '</b> completa: <b>' + feitas + '</b> foto(s). '
+      + 'Nenhum furo ficou para trás.', 0);
+}
+function pintarRodada(){
+  const box = $('s-rodada'); if(!box) return;
+  const f = rodadaAtual();
+  if(!RODADA.tipo || !f){ box.innerHTML = ''; return; }
+  const faltam = RODADA.fila.length - RODADA.pos;
+  box.innerHTML = `<div class="rodbar">
+    <div class="rodtop"><span style="color:var(--text2);font-weight:600">Rodada do
+      ${RODADA.tipo==='antes'?'ANTES':'DEPOIS'}</span><span>faltam ${faltam}</span></div>
+    <div class="rodfuro">Furo ${f.num}${f.rua?`<small>${esc(f.rua)}</small>`:''}</div>
+    <div class="brow">
+      <button class="btn bp" style="flex:2" onclick="rodadaTirar()"><i class="ti ti-camera"></i>Tirar a foto</button>
+      <button class="btn sm" style="flex:1" onclick="rodadaPular()">Pular</button>
+      <button class="btn sm" style="flex:1" onclick="rodadaParar()">Parar</button>
+    </div></div>`;
+}
+
 function seqTirar(furoUid, tipo){
   if(!pode('lancar')){ alerta('s-err', esc(avisoLimite('lancar'))); return; }
   if(congelado($('s-data') && $('s-data').value)){ alerta('s-err','Este dia já foi fechado pelo escritório e não aceita mais alteração.'); return; }
@@ -2468,14 +2602,15 @@ async function seqRecebeuFoto(input){
   /* Só entra foto tirada na hora. No aplicativo instalado a galeria nem é
      oferecida (o Android abre a câmera direto); no navegador, alguns aparelhos
      ainda deixam escapar a galeria — aqui a foto antiga é recusada. */
+  const todos = await dbGetAll('furos');
+  const furo = todos.find(x=>x.uid===furoUid);
   if(!fotoDeAgora(arq)){
+    contarRecusa('antiga', furo && furo.num);
     alerta('s-aviso','Só é aceita <b>foto tirada na hora</b>. Toque de novo no quadro e use a câmera.', 0);
     CAPTURANDO = false;
     await seqRender();
     return;
   }
-  const todos = await dbGetAll('furos');
-  const furo = todos.find(x=>x.uid===furoUid);
   if(!furo){ CAPTURANDO = false; return; }
   const RELOG = {}; const marco = (n,t)=>{ RELOG[n] = Math.round(performance.now()-t); };
   const t0 = performance.now();
@@ -2491,8 +2626,9 @@ async function seqRecebeuFoto(input){
        uma ficha sem foto — era isso que virava "foto que não existe". */
     if(imagemVazia(telaLimpa)){
       CAPTURANDO = false;
-      alerta('s-err','A foto saiu <b>em branco</b> — o celular não conseguiu capturar. '
-        + 'Feche e abra o aplicativo e tire essa foto de novo. <b>Nada foi gravado.</b>', 0);
+      contarRecusa('branco', furo.num);
+      alerta('s-err','A foto do <b>furo ' + furo.num + '</b> saiu <b>em branco</b> — o celular não conseguiu '
+        + 'capturar. Feche e abra o aplicativo e tire essa foto de novo. <b>Nada foi gravado.</b>', 0);
       await seqRender();
       return;
     }
@@ -2581,6 +2717,8 @@ async function seqRecebeuFoto(input){
     guardarRelogio(RELOG);
     /* o endereço corre atrás, sem prender ninguém */
     if(!enderecoOk) setTimeout(completarCarimbos, 400);
+    /* na rodada guiada, a foto gravada já chama o próximo furo */
+    if(RODADA.tipo){ CAPTURANDO = false; rodadaAvancar(); }
   }catch(err){
     console.error(err);
     alerta('s-err','Não deu para guardar a foto: '+esc(err.message||err));
@@ -2707,12 +2845,14 @@ async function seqRender(){
        vezes achando que ia resolver, sem nada para enviar. */
     const comBytes = await uidsComBytes();
     let nFotos = 0, semEnd = 0, aEnviar = 0, semGps = 0, semArquivo = 0;
+    let faltaAntes = 0, faltaDepois = 0;
     const cartoes = furos.map(f=>{
       const marcas = [];
       const cels = ['antes','depois'].map(tipo=>{
         const fo = mapaF.get(f.uid+'|'+tipo);
         const rot = `FURO ${f.num}<br>${tipo==='antes'?'ANTES':'DEPOIS'}`;
         if(!fo){ marcas.push(tipo+':-');
+          if(tipo==='antes') faltaAntes++; else faltaDepois++;
           return `<div class="slotp" data-slot="${f.uid}|${tipo}" onclick="seqTirar('${f.uid}','${tipo}')">
             <i class="ti ti-camera-plus"></i><div class="rot">${rot}</div></div>`; }
         nFotos++;
@@ -2759,6 +2899,17 @@ async function seqRender(){
          ? `<div class="kc rd"><div class="kl">Sem arquivo aqui</div><div class="kv">${semArquivo}</div></div>`
          : `<div class="kc ${semEnd?'am':'gn'}"><div class="kl">Sem endereço</div><div class="kv">${semEnd}</div></div>`}`;
 
+    /* as duas rodadas do dia, com o que falta em cada uma */
+    const rd = $('s-rodadas');
+    if(rd){
+      const bt = (tipo, falta) => `<button class="btn ${falta?'o':'sm'}" style="flex:1"
+          onclick="rodadaIniciar('${tipo}')"><i class="ti ti-camera-bolt"></i>
+          Rodada do ${tipo==='antes'?'ANTES':'DEPOIS'}${falta?` · faltam ${falta}`:' · completa'}</button>`;
+      rd.innerHTML = furos.length
+        ? `<div class="brow" style="margin-bottom:11px">${bt('antes',faltaAntes)}${bt('depois',faltaDepois)}</div>`
+        : '';
+    }
+
     pintarPosRelatorio(furos.length);
     const partes = [];
     if(!furos.length) partes.push('Comece adicionando o primeiro furo.');
@@ -2771,6 +2922,15 @@ async function seqRender(){
         <b>Enviar</b> para ver qual é o caso.</span>`);
       if(semEnd) partes.push(`<b>${semEnd}</b> sem endereço no carimbo — o app completa quando houver internet.`);
       if(semGps) partes.push(`<span style="color:var(--red)"><b>${semGps}</b> sem GPS.</span>`);
+      const rec = recusasDoDia();
+      if(rec && (rec.branco || rec.antiga)){
+        const q = [];
+        if(rec.branco) q.push(`<b>${rec.branco}</b> saíram em branco (celular sem memória)`);
+        if(rec.antiga) q.push(`<b>${rec.antiga}</b> eram da galeria, não tiradas na hora`);
+        partes.push(`<span style="color:var(--amber)">Neste dia o app <b>recusou</b> foto: ${q.join(' e ')}.
+          Nada disso foi gravado${rec.furos && rec.furos.length ? ' — furos ' + rec.furos.slice(0,15).join(', ')
+          + (rec.furos.length>15?'...':'') : ''}.</span>`);
+      }
     }
     $('s-status').innerHTML = partes.join('<br>');
   }catch(err){ console.error(err); erroSeq(err); }
@@ -3402,9 +3562,20 @@ async function seqConcluir(){
       +'fotos de todos os furos. Toque em <b>Planilha</b> para mandar também os dados das dimensões.',0);
   };
   if(semFoto.length){
-    confirmarSheet('Furos incompletos',
-      `Os furos <b>${semFoto.slice(0,12).join(', ')}</b>${semFoto.length>12?'...':''} estão sem as duas fotos.
-       Eles entram no relatório com o espaço vazio. Continuar mesmo assim?`, seguir);
+    /* o que falta é de um tipo só na maioria das vezes — oferecer a rodada
+       certa vale mais do que pedir "continuar mesmo assim" */
+    const faltamA = (await rodadaFaltando('antes')).length;
+    const faltamD = (await rodadaFaltando('depois')).length;
+    const alvo = faltamD >= faltamA ? 'depois' : 'antes';
+    const seguirMesmo = await perguntaSheet(
+      `${semFoto.length} furo(s) sem as duas fotos`,
+      `Faltam <b>${faltamA}</b> foto(s) do ANTES e <b>${faltamD}</b> do DEPOIS — furos
+       <b>${semFoto.slice(0,12).join(', ')}</b>${semFoto.length>12?'...':''}.<br><br>
+       Se a equipe ainda está na rua, dá para fechar isso agora em uma rodada.
+       Se concluir assim, esses furos entram no relatório com o espaço vazio.`,
+      `Fazer a rodada do ${alvo==='antes'?'ANTES':'DEPOIS'}`, 'Concluir assim mesmo');
+    if(seguirMesmo){ await rodadaIniciar(alvo); return; }
+    await seguir();
   } else seguir();
 }
 
